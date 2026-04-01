@@ -336,31 +336,100 @@ class DatabaseManagerSS14:
             print(f"Ошибка получения списка привязок: {last_error}")
         return linked_ids
 
-    async def link_user(self, guid: str, discord_id: str, db_name: str = 'astra'):
-        conn = await self.get_connection(db_name)
+    async def _insert_link_in_db(self, guid: str, discord_id: str, db_name: str) -> tuple[bool, bool, str]:
+        conn = None
         try:
+            conn = await self.get_connection(db_name)
             async with conn.transaction():
+                existing_guid = await conn.fetchval(
+                    "SELECT user_id FROM discord_user WHERE discord_id = $1",
+                    discord_id
+                )
+                if existing_guid:
+                    if str(existing_guid) == str(guid):
+                        return True, False, "already_linked"
+                    return False, False, f"discord_id уже привязан к другому GUID ({existing_guid}) в БД {db_name.upper()}"
+
                 max_id = await conn.fetchval("SELECT COALESCE(MAX(discord_user_id), 0) FROM discord_user") or 0
                 next_id = max_id + 1
-                await conn.execute("INSERT INTO discord_user (discord_user_id, user_id, discord_id) VALUES ($1, $2, $3)", next_id, guid, discord_id)
-                return True, "Аккаунт привязан."
+                await conn.execute(
+                    "INSERT INTO discord_user (discord_user_id, user_id, discord_id) VALUES ($1, $2, $3)",
+                    next_id,
+                    guid,
+                    discord_id
+                )
+                return True, True, "inserted"
         except Exception as e:
-            return False, f"Ошибка: {e}"
+            return False, False, str(e)
         finally:
-            await conn.close()
+            if conn:
+                await conn.close()
+
+    async def _delete_link_in_db(self, discord_id: str, db_name: str) -> tuple[bool, bool, str]:
+        conn = None
+        try:
+            conn = await self.get_connection(db_name)
+            async with conn.transaction():
+                deleted = await conn.fetchval(
+                    "DELETE FROM discord_user WHERE discord_id = $1 RETURNING user_id",
+                    discord_id
+                )
+                return True, bool(deleted), "deleted" if deleted else "not_found"
+        except Exception as e:
+            return False, False, str(e)
+        finally:
+            if conn:
+                await conn.close()
+
+    async def link_user(self, guid: str, discord_id: str, db_name: str = 'astra'):
+        target_dbs = self._linked_lookup_order(db_name)
+        inserted_dbs: list[str] = []
+
+        for current_db in target_dbs:
+            ok, inserted, message = await self._insert_link_in_db(guid, discord_id, current_db)
+            if not ok:
+                rollback_errors: list[str] = []
+                for rollback_db in inserted_dbs:
+                    rb_ok, _, rb_message = await self._delete_link_in_db(discord_id, rollback_db)
+                    if not rb_ok:
+                        rollback_errors.append(f"{rollback_db.upper()}: {rb_message}")
+
+                rollback_suffix = ""
+                if rollback_errors:
+                    rollback_suffix = f" Откат выполнен с ошибками: {'; '.join(rollback_errors)}"
+
+                return False, f"Ошибка привязки в БД {current_db.upper()}: {message}.{rollback_suffix}"
+
+            if inserted:
+                inserted_dbs.append(current_db)
+
+        dbs_str = ", ".join(db.upper() for db in target_dbs)
+        return True, f"Аккаунт привязан в БД: {dbs_str}."
 
     async def unlink_user(self, discord_id: str, db_name: str = 'astra') -> tuple[bool, str]:
-        conn = await self.get_connection(db_name)
-        try:
-            async with conn.transaction():
-                result = await conn.fetchval("DELETE FROM discord_user WHERE discord_id = $1 RETURNING user_id", discord_id)
-                if result:
-                    return True, "Аккаунт отвязан."
-                return False, "Ошибка удаления."
-        except Exception as e:
-            return False, f"Ошибка: {e}"
-        finally:
-            await conn.close()
+        target_dbs = self._linked_lookup_order(db_name)
+        deleted_any = False
+        errors: list[str] = []
+
+        for current_db in target_dbs:
+            ok, deleted, message = await self._delete_link_in_db(discord_id, current_db)
+            if not ok:
+                errors.append(f"{current_db.upper()}: {message}")
+                continue
+            if deleted:
+                deleted_any = True
+
+        if errors and not deleted_any:
+            return False, f"Ошибка отвязки: {'; '.join(errors)}"
+
+        if errors and deleted_any:
+            return False, f"Частичная отвязка (есть ошибки): {'; '.join(errors)}"
+
+        if deleted_any:
+            dbs_str = ", ".join(db.upper() for db in target_dbs)
+            return True, f"Аккаунт отвязан в БД: {dbs_str}."
+
+        return False, "Аккаунт не привязан."
 
     async def get_logs_by_round(self, username: str, round_id: int, db_name: str = 'astra'):
         conn = await self.get_connection(db_name)
