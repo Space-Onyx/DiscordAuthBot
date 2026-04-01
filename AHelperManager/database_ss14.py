@@ -35,17 +35,30 @@ class DatabaseManagerSS14:
             }
         }
 
+    def _is_db_configured(self, db_name: str) -> bool:
+        params = self.db_params.get(db_name)
+        if not params:
+            return False
+        required = ('database', 'user', 'password', 'host', 'port')
+        return all(params.get(key) not in (None, '') for key in required)
+
     def _linked_lookup_order(self, db_name: str) -> list[str]:
         if db_name == 'astra':
-            return ['astra', 'dev']
+            order = ['astra', 'dev']
+            return [db for db in order if self._is_db_configured(db)]
         if db_name == 'dev':
-            return ['dev', 'astra']
-        return [db_name]
+            order = ['dev', 'astra']
+            return [db for db in order if self._is_db_configured(db)]
+        if self._is_db_configured(db_name):
+            return [db_name]
+        return []
 
     async def get_connection(self, db_name='astra'):
         """Возвращает асинхронное соединение с указанной базой данных"""
         if db_name not in self.db_params:
             raise ValueError(f"Неизвестное имя БД: {db_name}")
+        if not self._is_db_configured(db_name):
+            raise ValueError(f"БД {db_name} не настроена")
 
         params = self.db_params[db_name]
         dsn = f"postgres://{params['user']}:{params['password']}@{params['host']}:{params['port']}/{params['database']}"
@@ -383,6 +396,8 @@ class DatabaseManagerSS14:
 
     async def link_user(self, guid: str, discord_id: str, db_name: str = 'astra'):
         target_dbs = self._linked_lookup_order(db_name)
+        if not target_dbs:
+            return False, "Нет настроенных БД для привязки."
         inserted_dbs: list[str] = []
 
         for current_db in target_dbs:
@@ -408,6 +423,8 @@ class DatabaseManagerSS14:
 
     async def unlink_user(self, discord_id: str, db_name: str = 'astra') -> tuple[bool, str]:
         target_dbs = self._linked_lookup_order(db_name)
+        if not target_dbs:
+            return False, "Нет настроенных БД для отвязки."
         deleted_any = False
         errors: list[str] = []
 
