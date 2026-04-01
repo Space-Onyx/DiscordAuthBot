@@ -127,7 +127,7 @@ embed_admin_help = {
         {"name": "Управление правами", "value": '&admin <nickname> — Проверка прав админа.\n&list_permission <mrp/dev> (по умолчанию mrp) - выводит список прав сервера\n&add_permission <username> \"<title>\" \"<permission>\" <server> — Добавить права на сервере DEV/MRP.\n&del_permission <username> <server> — Удалить права на сервере DEV/MRP.\n&tweak_permission <username> \"<title>\" \"<permission>\" <server> — Изменить права на сервере DEV/MRP.', "inline": False},
         {"name": "Информация о игроке", "value": '&logs <username> <round> <server> - Ищет админабуз админа за указанный раунд.\n&check_nick <nickname> — Проверка на мультиаккаунт.\n&get_ckey <Discord id> — Получить ckey по ID дискорда.\n&notelist <nickname> — Заметки игрока.\n&banlist <nickname> — Банлист игрока.', "inline": False},
         {"name": "Баны и модерация", "value": '&ban <nickname> \"<reason>\" <time> в минутах — Выдает бан игроку.\n&kick <nickname> \"<reason>\" — Кик.\n&pardon <ban_id> — Разбанивает игрока.', "inline": False},
-        {"name": "Сервер", "value": '&status <mrp/dev> (по умолчанию mrp) - Информация о сервере\n&admin_info — Подробная информация о сервере.\n&bunker <on/off> — Включает/выключает бункер.\n&restart <server> — Рестарт сервера.', "inline": False},
+        {"name": "Сервер", "value": '&status <mrp/dev> (по умолчанию mrp) - Информация о сервере\n&admin_info — Подробная информация о сервере.\n&bunker <on/off> — Включает/выключает бункер.', "inline": False},
     ]
 }
 
@@ -142,7 +142,7 @@ embed_help = {
     "fields": [
         {"name": "Основные команды", "value": '🤖 &help - Вывод всех команд бота.\n😈 &admin_help - Вывод админ-команд для взаимодействия с игровым сервером.\n🔍 &check - проверяет работу бота\n🎭 &user_role <роль> - выводит список пользователнй с этой ролью\n🎮 &status - выводит информацию о игровом сервере в данный момент', "inline": False},
         {"name": "\nЧто ещё умеет бот:", "value": '📢 Обновлять статус сервера в канале #https://discord.com/channels/1474158623834898648/1488933475368042537\n📖 Обновлять список команды проекта в указаном канале.', "inline": False},
-        {"name": "\nРепозиторий бота:", "value": '🔗 Гитхаб: Пока что пусто | Оригинальный автор: [Darkiich](https://github.com/Darkiich)', "inline": False}
+        {"name": "\nРепозиторий бота:", "value": '🔗 Гитхаб: https://github.com/Space-Onyx/DiscordAuthBot | Оригинальный автор: [Darkiich](https://github.com/Darkiich)', "inline": False}
     ]
 }
 

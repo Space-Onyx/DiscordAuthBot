@@ -15,7 +15,7 @@ from datetime import datetime
 
 class DatabaseManagerSS14:
     """
-    РљР»Р°СЃСЃ РґР»СЏ СЂР°Р±РѕС‚С‹ РІ Р±Рґ Р’Рџ СЃСЃ14
+    Класс для работы в БД ВП SS14
     """
     def __init__(self):
         self.db_params = {
@@ -36,9 +36,9 @@ class DatabaseManagerSS14:
         }
 
     async def get_connection(self, db_name='astra'):
-        """Р’РѕР·РІСЂР°С‰Р°РµС‚ Р°СЃРёРЅС…СЂРѕРЅРЅРѕРµ СЃРѕРµРґРёРЅРµРЅРёРµ СЃ СѓРєР°Р·Р°РЅРЅРѕР№ Р±Р°Р·РѕР№ РґР°РЅРЅС‹С…"""
+        """Возвращает асинхронное соединение с указанной базой данных"""
         if db_name not in self.db_params:
-            raise ValueError(f"РќРµРёР·РІРµСЃС‚РЅРѕРµ РёРјСЏ Р‘Р”: {db_name}")
+            raise ValueError(f"Неизвестное имя БД: {db_name}")
 
         params = self.db_params[db_name]
         dsn = f"postgres://{params['user']}:{params['password']}@{params['host']}:{params['port']}/{params['database']}"
@@ -46,7 +46,7 @@ class DatabaseManagerSS14:
 
     async def get_admin_name(self, guid: str, db_name: str = 'astra'):
         """
-        РџРѕР»СѓС‡Р°РµС‚ РёРјСЏ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂР° РїРѕ GUID.
+        Получает имя администратора по GUID.
         """
         conn = await self.get_connection(db_name)
         try:
@@ -57,7 +57,7 @@ class DatabaseManagerSS14:
 
     async def get_player_guid(self, nickname: str, db_name: str = 'astra'):
         """
-        РџРѕР»СѓС‡Р°РµС‚ GUID РёРіСЂРѕРєР° РїРѕ РёРјРµРЅРё.
+        Получает GUID игрока по имени.
         """
         conn = await self.get_connection(db_name)
         try:
@@ -68,7 +68,7 @@ class DatabaseManagerSS14:
 
     async def get_player_guid_by_discord_id(self, ds_id: str, db_name: str = 'astra'):
         """
-        РџРѕР»СѓС‡Р°РµС‚ GUID РёРіСЂРѕРєР° РїРѕ ID РґРёСЃРєРѕСЂРґР°.
+        Получает GUID игрока по ID дискорда.
         """
         conn = await self.get_connection(db_name)
         try:
@@ -79,7 +79,7 @@ class DatabaseManagerSS14:
     
     async def get_discord_info_by_guid(self, user_id: str, db_name: str = 'astra'):
         """
-        РџРѕР»СѓС‡Р°РµС‚ discord id РїРѕ GUID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.
+        Получает discord id по GUID пользователя.
         """
         conn = await self.get_connection(db_name)
         try:
@@ -90,7 +90,7 @@ class DatabaseManagerSS14:
 
     async def get_player_name(self, guid: str, db_name: str = 'astra'):
         """
-        РџРѕР»СѓС‡Р°РµС‚ РёРјСЏ РёРіСЂРѕРєР° РїРѕ GUID.
+        Получает имя игрока по GUID.
         """
         conn = await self.get_connection(db_name)
         try:
@@ -101,7 +101,7 @@ class DatabaseManagerSS14:
 
     async def search_ban_player(self, username: str, db_name: str = 'astra'):
         """
-        РџРѕР»СѓС‡Р°РµС‚ РёСЃС‚РѕСЂРёСЋ Р±Р°РЅРѕРІ РёРіСЂРѕРєР° РїРѕ РЅРёРєСѓ.
+        Получает историю банов игрока по нику.
         """
         conn = await self.get_connection(db_name)
         try:
@@ -111,9 +111,9 @@ class DatabaseManagerSS14:
                     sb.ban_time, 
                     sb.expiration_time, 
                     sb.reason, 
-                    COALESCE(p.last_seen_user_name, 'РќРµРёР·РІРµСЃС‚РЅРѕ') AS admin_nickname,
+                    COALESCE(p.last_seen_user_name, 'Неизвестно') AS admin_nickname,
                     ub.unban_time,
-                    COALESCE(p2.last_seen_user_name, 'РќРµРёР·РІРµСЃС‚РЅРѕ') AS unban_admin_nickname
+                    COALESCE(p2.last_seen_user_name, 'Неизвестно') AS unban_admin_nickname
                 FROM server_ban sb
                 LEFT JOIN player p ON sb.banning_admin = p.user_id
                 LEFT JOIN server_unban ub ON sb.server_ban_id = ub.ban_id
@@ -125,14 +125,14 @@ class DatabaseManagerSS14:
             """, username)
             return result
         except Exception as e:
-            print(f"РћС€РёР±РєР° Р‘Р”: {e}")
+            print(f"Ошибка БД: {e}")
             return None
         finally:
             await conn.close()
 
     async def search_notes_player(self, username: str, db_name: str = 'astra'):
         """
-        РџРѕР»СѓС‡Р°РµС‚ Р·Р°РјРµС‚РєРё РёРіСЂРѕРєР° РїРѕ РЅРёРєСѓ.
+        Получает заметки игрока по нику.
         """
         conn = await self.get_connection(db_name)
         try:
@@ -158,7 +158,7 @@ class DatabaseManagerSS14:
             """, username)
             return result
         except Exception as e:
-            print(f"РћС€РёР±РєР° Р‘Р”: {e}")
+            print(f"Ошибка БД: {e}")
             return None
         finally:
             await conn.close()
@@ -169,24 +169,24 @@ class DatabaseManagerSS14:
             async with conn.transaction():
                 exists = await conn.fetchval("SELECT 1 FROM server_ban WHERE server_ban_id = $1", ban_id)
                 if not exists:
-                    return False, f"вќЊ Р‘Р°РЅ {ban_id} РЅРµ СЃСѓС‰РµСЃС‚РІСѓРµС‚."
+                    return False, f"❌ Бан {ban_id} не существует."
 
                 already_unbanned = await conn.fetchval("SELECT 1 FROM server_unban WHERE ban_id = $1", ban_id)
                 if already_unbanned:
-                    return False, f"вљ пёЏ Р‘Р°РЅ {ban_id} СѓР¶Рµ СЃРЅСЏС‚."
+                    return False, f"⚠️ Бан {ban_id} уже снят."
 
                 admin_name = await self.get_admin_name(admin_guid, db_name)
                 if not admin_name:
-                    return False, f"вќЊ РџСЂРё РїРѕРїС‹С‚РєРµ РЅР°Р№С‚Рё РёРјСЏ Р°РґРјРёРЅР° РІ Р‘Р” РїСЂРѕРёР·РѕС€Р»Р° РѕС€РёР±РєР°: РђРґРјРёРЅ СЃ GUID {admin_guid} РЅРµ РЅР°Р№РґРµРЅ."
+                    return False, f"❌ При попытке найти имя админа в БД произошла ошибка: Админ с GUID {admin_guid} не найден."
 
                 await conn.execute("""
                     INSERT INTO server_unban (ban_id, unbanning_admin, unban_time)
                     VALUES ($1, $2, $3::timestamptz)
                 """, ban_id, admin_guid, unban_time)
 
-                return True, f"вњ… Р‘Р°РЅ {ban_id} СЃРЅСЏС‚ Р°РґРјРёРЅРѕРј {admin_name}."
+                return True, f"✅ Бан {ban_id} снят админом {admin_name}."
         except Exception as e:
-            return False, f"РћС€РёР±РєР°: {e}"
+            return False, f"Ошибка: {e}"
         finally:
             await conn.close()
     
@@ -235,17 +235,17 @@ class DatabaseManagerSS14:
 
                 rank_id = await conn.fetchval("SELECT admin_rank_id FROM admin_rank WHERE name ILIKE $1", permission)
                 if not rank_id:
-                    return False, f"РќРµ РЅР°Р№РґРµРЅ СЂР°РЅРі СЃ РЅР°Р·РІР°РЅРёРµРј {permission}"
+                    return False, f"Не найден ранг с названием {permission}"
 
                 await conn.execute("""
                     INSERT INTO admin (user_id, title, admin_rank_id)
                     VALUES ($1, $2, $3)
                 """, guid, title, rank_id)
 
-                return True, f"РџСЂР°РІР° Р±С‹Р»Рё СѓСЃРїРµС€РЅРѕ РґРѕР±Р°РІР»РµРЅС‹ РґР»СЏ {username} РІ Р‘Р” {db_name.upper()}"
+                return True, f"Права были успешно добавлены для {username} в БД {db_name.upper()}"
 
         except Exception as e:
-            return False, f"РћС€РёР±РєР°: {e}"
+            return False, f"Ошибка: {e}"
         finally:
             await conn.close()
 
@@ -257,10 +257,10 @@ class DatabaseManagerSS14:
                 await conn.execute("""
                     DELETE FROM admin WHERE user_id = $1""", guid)
 
-                return True, f"РџСЂР°РІР° Р±С‹Р»Рё СѓСЃРїРµС€РЅРѕ СЃРЅСЏС‚С‹ РґР»СЏ {username} РІ Р‘Р” {db_name.upper()}"
+                return True, f"Права были успешно сняты для {username} в БД {db_name.upper()}"
 
         except Exception as e:
-            return False, f"РћС€РёР±РєР°: {e}"
+            return False, f"Ошибка: {e}"
         finally:
             await conn.close()
         
@@ -271,15 +271,15 @@ class DatabaseManagerSS14:
 
                 rank_id = await conn.fetchval("SELECT admin_rank_id FROM admin_rank WHERE name ILIKE $1", permission)
                 if not rank_id:
-                    return False, f"РќРµ РЅР°Р№РґРµРЅ СЂР°РЅРі СЃ РЅР°Р·РІР°РЅРёРµРј {permission}"
+                    return False, f"Не найден ранг с названием {permission}"
 
                 await conn.execute("""
                     UPDATE admin SET title = $1, admin_rank_id = $2 WHERE user_id = $3
                 """, title, rank_id, guid)
 
-                return True, f"РџСЂР°РІР° Р±С‹Р»Рё СѓСЃРїРµС€РЅРѕ РёР·РјРµРЅРµРЅС‹ РґР»СЏ {username} РІ Р‘Р” {db_name.upper()}"
+                return True, f"Права были успешно изменены для {username} в БД {db_name.upper()}"
         except Exception as e:
-            return False, f"РћС€РёР±РєР°: {e}"
+            return False, f"Ошибка: {e}"
         finally:
             await conn.close()
 
@@ -298,9 +298,9 @@ class DatabaseManagerSS14:
                 max_id = await conn.fetchval("SELECT COALESCE(MAX(discord_user_id), 0) FROM discord_user") or 0
                 next_id = max_id + 1
                 await conn.execute("INSERT INTO discord_user (discord_user_id, user_id, discord_id) VALUES ($1, $2, $3)", next_id, guid, discord_id)
-                return True, "РђРєРєР°СѓРЅС‚ РїСЂРёРІСЏР·Р°РЅ."
+                return True, "Аккаунт привязан."
         except Exception as e:
-            return False, f"РћС€РёР±РєР°: {e}"
+            return False, f"Ошибка: {e}"
         finally:
             await conn.close()
 
@@ -310,17 +310,17 @@ class DatabaseManagerSS14:
             async with conn.transaction():
                 result = await conn.fetchval("DELETE FROM discord_user WHERE discord_id = $1 RETURNING user_id", discord_id)
                 if result:
-                    return True, "РђРєРєР°СѓРЅС‚ РѕС‚РІСЏР·Р°РЅ."
-                return False, "РћС€РёР±РєР° СѓРґР°Р»РµРЅРёСЏ."
+                    return True, "Аккаунт отвязан."
+                return False, "Ошибка удаления."
         except Exception as e:
-            return False, f"РћС€РёР±РєР°: {e}"
+            return False, f"Ошибка: {e}"
         finally:
             await conn.close()
 
     async def get_logs_by_round(self, username: str, round_id: int, db_name: str = 'astra'):
         conn = await self.get_connection(db_name)
         try:
-            keywords = ["used placement system to create", "Р”РµР±Р°Рі", "РђРґРјРёРЅ", "was respawned", "РўСЂСЋРєРё", "РџРѕРєР°СЂР°С‚СЊ"]
+            keywords = ["used placement system to create", "Дебаг", "Админ", "was respawned", "Трюки", "Покарать"]
 
             like_username = f"%{username}%"
             or_conditions = " OR ".join(f"message ILIKE '%{kw}%'" for kw in keywords)
@@ -338,43 +338,3 @@ class DatabaseManagerSS14:
             return result
         finally:
             await conn.close()
-    
-    async def get_sponsor(self, guid: str, db_name: str = 'astra'):
-        conn = await self.get_connection(db_name)
-        try:
-            result = await conn.fetchrow("SELECT user_id, player_name, donate_name, tier, ooccolor, have_priority_join, extra_slots, expire_date, allow_job FROM sponsors WHERE user_id = $1", guid)
-            return dict(result) if result else None
-        except Exception as e:
-            print(f"РћС€РёР±РєР° Р‘Р”: {e}")
-            return None
-        finally:
-            await conn.close()
-
-    async def delete_sponsor(self, guid: str, db_name: str = 'astra'):
-        conn = await self.get_connection(db_name)
-        try:
-            async with conn.transaction():
-                await conn.execute("DELETE FROM sponsors WHERE user_id = $1", guid)
-                return True
-        except Exception as e:
-            return False, f"РћС€РёР±РєР°: {e}"
-        finally:
-            await conn.close()
-
-    async def add_sponsor(self, guid: str, player_name: str, donate_name: str, tier: str, ooccolor: str, have_priority_join: bool, markings: str, extra_slots: int, expire_date: datetime, allow_job: bool, db_name: str = 'astra'):
-        conn = await self.get_connection(db_name)
-        try:
-            async with conn.transaction():
-                if await conn.fetchval("SELECT 1 FROM sponsors WHERE user_id = $1", guid):
-                    return False
-
-                await conn.execute("""
-                    INSERT INTO sponsors (user_id, player_name, donate_name, tier, ooccolor, have_priority_join, allowed_markings, extra_slots, expire_date, allow_job)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz, $10)
-                """, guid, player_name, donate_name, tier, ooccolor, have_priority_join, markings, extra_slots, expire_date, allow_job)
-                return True
-        except Exception as e:
-            return False, f"РћС€РёР±РєР°: {e}"
-        finally:
-            await conn.close()
-
