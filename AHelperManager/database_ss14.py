@@ -35,6 +35,13 @@ class DatabaseManagerSS14:
             }
         }
 
+    def _linked_lookup_order(self, db_name: str) -> list[str]:
+        if db_name == 'astra':
+            return ['astra', 'dev']
+        if db_name == 'dev':
+            return ['dev', 'astra']
+        return [db_name]
+
     async def get_connection(self, db_name='astra'):
         """Возвращает асинхронное соединение с указанной базой данных"""
         if db_name not in self.db_params:
@@ -70,12 +77,22 @@ class DatabaseManagerSS14:
         """
         Получает GUID игрока по ID дискорда.
         """
-        conn = await self.get_connection(db_name)
-        try:
-            result = await conn.fetchval("SELECT user_id FROM discord_user WHERE discord_id = $1", ds_id)
-            return result if result else None
-        finally:
-            await conn.close()
+        last_error = None
+        for current_db in self._linked_lookup_order(db_name):
+            conn = None
+            try:
+                conn = await self.get_connection(current_db)
+                result = await conn.fetchval("SELECT user_id FROM discord_user WHERE discord_id = $1", ds_id)
+                if result:
+                    return result
+            except Exception as e:
+                last_error = e
+            finally:
+                if conn:
+                    await conn.close()
+        if last_error:
+            print(f"Ошибка поиска привязки discord_id={ds_id}: {last_error}")
+        return None
     
     async def get_discord_info_by_guid(self, user_id: str, db_name: str = 'astra'):
         """
@@ -284,20 +301,40 @@ class DatabaseManagerSS14:
             await conn.close()
 
     async def is_linked(self, discord_id: str, db_name: str = 'astra'):
-        conn = await self.get_connection(db_name)
-        try:
-            result = await conn.fetchval("SELECT 1 FROM discord_user WHERE discord_id = $1", discord_id)
-            return bool(result)
-        finally:
-            await conn.close()
+        last_error = None
+        for current_db in self._linked_lookup_order(db_name):
+            conn = None
+            try:
+                conn = await self.get_connection(current_db)
+                result = await conn.fetchval("SELECT 1 FROM discord_user WHERE discord_id = $1", discord_id)
+                if result:
+                    return True
+            except Exception as e:
+                last_error = e
+            finally:
+                if conn:
+                    await conn.close()
+        if last_error:
+            print(f"Ошибка проверки привязки discord_id={discord_id}: {last_error}")
+        return False
 
     async def get_all_linked_discord_ids(self, db_name: str = 'astra') -> set[str]:
-        conn = await self.get_connection(db_name)
-        try:
-            rows = await conn.fetch("SELECT DISTINCT discord_id FROM discord_user WHERE discord_id IS NOT NULL")
-            return {str(row["discord_id"]) for row in rows if row["discord_id"]}
-        finally:
-            await conn.close()
+        linked_ids: set[str] = set()
+        last_error = None
+        for current_db in self._linked_lookup_order(db_name):
+            conn = None
+            try:
+                conn = await self.get_connection(current_db)
+                rows = await conn.fetch("SELECT DISTINCT discord_id FROM discord_user WHERE discord_id IS NOT NULL")
+                linked_ids.update(str(row["discord_id"]) for row in rows if row["discord_id"])
+            except Exception as e:
+                last_error = e
+            finally:
+                if conn:
+                    await conn.close()
+        if last_error and not linked_ids:
+            print(f"Ошибка получения списка привязок: {last_error}")
+        return linked_ids
 
     async def link_user(self, guid: str, discord_id: str, db_name: str = 'astra'):
         conn = await self.get_connection(db_name)
