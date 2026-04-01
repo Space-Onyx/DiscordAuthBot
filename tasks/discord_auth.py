@@ -1,10 +1,139 @@
-﻿import disnake
 import uuid
+import asyncio
 
-from bot_init import ss14_db, bot
+import disnake
 from disnake.ext import tasks
 
-from dataConfig import CHANNEL_AUTH_DISCORD, CHANNEL_LOG_AUTH_DISCORD
+from bot_init import bot, ss14_db
+from dataConfig import CHANNEL_AUTH_DISCORD, CHANNEL_LOG_AUTH_DISCORD, LINKED_ACCOUNT_ROLE_ID
+
+
+def _resolve_linked_role_id():
+    if LINKED_ACCOUNT_ROLE_ID in (None, "", 0, "0"):
+        return None
+
+    try:
+        return int(LINKED_ACCOUNT_ROLE_ID)
+    except (TypeError, ValueError):
+        print(f"[LinkedRoleSync] Invalid LINKED_ACCOUNT_ROLE_ID: {LINKED_ACCOUNT_ROLE_ID}")
+        return None
+
+
+async def _get_member(guild: disnake.Guild, member_id: int):
+    member = guild.get_member(member_id)
+    if member is not None:
+        return member
+
+    try:
+        return await guild.fetch_member(member_id)
+    except (disnake.NotFound, disnake.Forbidden, disnake.HTTPException):
+        return None
+
+
+async def set_linked_role_for_discord_id(discord_id: str, linked: bool):
+    role_id = _resolve_linked_role_id()
+    if role_id is None:
+        return 0, 0
+
+    try:
+        member_id = int(discord_id)
+    except (TypeError, ValueError):
+        return 0, 0
+
+    added = 0
+    removed = 0
+
+    for guild in bot.guilds:
+        role = guild.get_role(role_id)
+        if role is None:
+            continue
+
+        member = await _get_member(guild, member_id)
+        if member is None:
+            continue
+
+        has_role = role in member.roles
+        if linked and not has_role:
+            try:
+                await member.add_roles(role, reason="SS14 account linked")
+                added += 1
+            except disnake.HTTPException:
+                continue
+        elif not linked and has_role:
+            try:
+                await member.remove_roles(role, reason="SS14 account unlinked")
+                removed += 1
+            except disnake.HTTPException:
+                continue
+
+    return added, removed
+
+
+async def sync_linked_account_roles():
+    role_id = _resolve_linked_role_id()
+    if role_id is None:
+        return 0, 0
+
+    linked_ids = set()
+    last_error = None
+    for _ in range(3):
+        try:
+            linked_ids = await ss14_db.get_all_linked_discord_ids()
+            last_error = None
+            break
+        except Exception as e:
+            last_error = e
+            await asyncio.sleep(1)
+
+    if last_error is not None:
+        print(f"[LinkedRoleSync] DB unavailable, skip cycle: {last_error}")
+        return 0, 0
+
+    added = 0
+    removed = 0
+
+    for guild in bot.guilds:
+        role = guild.get_role(role_id)
+        if role is None:
+            continue
+
+        for ds_id in linked_ids:
+            try:
+                member_id = int(ds_id)
+            except (TypeError, ValueError):
+                continue
+
+            member = await _get_member(guild, member_id)
+            if member is None or role in member.roles:
+                continue
+
+            try:
+                await member.add_roles(role, reason="SS14 account linked")
+                added += 1
+            except disnake.HTTPException:
+                continue
+
+        for member in list(role.members):
+            if str(member.id) in linked_ids:
+                continue
+            try:
+                await member.remove_roles(role, reason="SS14 account unlinked")
+                removed += 1
+            except disnake.HTTPException:
+                continue
+
+    return added, removed
+
+
+@tasks.loop(minutes=30)
+async def linked_role_sync_task():
+    try:
+        added, removed = await sync_linked_account_roles()
+        if added or removed:
+            print(f"[LinkedRoleSync] Added: {added}, removed: {removed}")
+    except Exception as e:
+        print(f"[LinkedRoleSync] Sync error: {e}")
+
 
 class NicknameModal(disnake.ui.Modal):
     def __init__(self):
@@ -14,7 +143,7 @@ class NicknameModal(disnake.ui.Modal):
                 placeholder="UID из лобби SS14",
                 custom_id="guid",
                 style=disnake.TextInputStyle.short,
-                required=True
+                required=True,
             )
         ]
         super().__init__(title="Привязка аккаунта", components=components)
@@ -27,28 +156,42 @@ class NicknameModal(disnake.ui.Modal):
 
         if not guid:
             await inter.send("❌ UID не может быть пустым.", ephemeral=True)
-            await tech_channel.send(f"⚠️ Пользователь {inter.author.name} ({discord_id}) ввёл пустой UID.")
+            if tech_channel:
+                await tech_channel.send(f"⚠️ Пользователь {inter.author.name} ({discord_id}) ввёл пустой UID.")
             return
 
         if await ss14_db.is_linked(discord_id):
             await inter.send("❌ Аккаунт уже привязан.", ephemeral=True)
-            await tech_channel.send(f"⚠️ Пользователь {inter.author.name} ({discord_id}) пытался повторно привязать аккаунт.")
+            if tech_channel:
+                await tech_channel.send(
+                    f"⚠️ Пользователь {inter.author.name} ({discord_id}) пытался повторно привязать аккаунт."
+                )
             return
 
         try:
             uuid.UUID(guid)
         except ValueError:
-            invalid_guid = inter.text_values['guid'].strip()
-            await inter.send("⚠️ Вы ввели невалидный UID", ephemeral=True)
-            await tech_channel.send(f"⚠️ Ошибка: Пользователь {inter.author.name} пытался привязать аккаунт вводя невалидный {invalid_guid}")
+            invalid_guid = inter.text_values["guid"].strip()
+            await inter.send("⚠️ Вы ввели невалидный UID.", ephemeral=True)
+            if tech_channel:
+                await tech_channel.send(
+                    f"⚠️ Ошибка: {inter.author.name} ({discord_id}) ввёл невалидный UID {invalid_guid}."
+                )
             return
 
         success, message = await ss14_db.link_user(guid, discord_id)
         await inter.send(message, ephemeral=True)
+
         if success:
-            await tech_channel.send(f"✅ Привязка: {inter.author.name} ({discord_id}) к UID {guid}.")
+            await set_linked_role_for_discord_id(discord_id, True)
+            if tech_channel:
+                await tech_channel.send(f"✅ Привязка: {inter.author.name} ({discord_id}) к UID {guid}.")
         else:
-            await tech_channel.send(f"⚠️ Ошибка привязки для {inter.author.name} ({discord_id}) к UID {guid}: {message}.")
+            if tech_channel:
+                await tech_channel.send(
+                    f"⚠️ Ошибка привязки для {inter.author.name} ({discord_id}) к UID {guid}: {message}."
+                )
+
 
 class RegisterButton(disnake.ui.View):
     def __init__(self):
@@ -57,6 +200,7 @@ class RegisterButton(disnake.ui.View):
     @disnake.ui.button(label="Привязать аккаунт", style=disnake.ButtonStyle.primary, custom_id="link_button")
     async def register(self, button, inter):
         await inter.response.send_modal(NicknameModal())
+
 
 @tasks.loop(hours=12)
 async def discord_auth_update():
@@ -67,7 +211,7 @@ async def discord_auth_update():
     embed = disnake.Embed(
         title="Привязка аккаунта SS14",
         description="Нажмите кнопку и введите UID.",
-        color=0x3498db
+        color=0x3498DB,
     )
 
     pinned = []

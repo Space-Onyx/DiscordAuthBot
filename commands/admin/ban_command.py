@@ -13,7 +13,7 @@ async def ban_command(ctx, nickname: str, reason: str, time: str):
 
     admin_guid = await ss14_db.get_player_guid_by_discord_id(discord_id)
     if not admin_guid:
-        await ctx.send("⚠️ Ваш GUID не найден в БД. Привяжите свой аккакнут в канале #🔗▏привязка-аккаунта - https://discord.com/channels/901772674865455115/1351213738774237184.")
+        await ctx.send("⚠️ Ваш GUID не найден в БД. Привяжите свой аккакнут в канале #🔗・привязка-аккаунта - https://discord.com/channels/1474158623834898648/1488907777941307453.")
         return
 
     admin_name = await ss14_db.get_admin_name(admin_guid)

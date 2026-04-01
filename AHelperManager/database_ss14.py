@@ -291,6 +291,14 @@ class DatabaseManagerSS14:
         finally:
             await conn.close()
 
+    async def get_all_linked_discord_ids(self, db_name: str = 'astra') -> set[str]:
+        conn = await self.get_connection(db_name)
+        try:
+            rows = await conn.fetch("SELECT DISTINCT discord_id FROM discord_user WHERE discord_id IS NOT NULL")
+            return {str(row["discord_id"]) for row in rows if row["discord_id"]}
+        finally:
+            await conn.close()
+
     async def link_user(self, guid: str, discord_id: str, db_name: str = 'astra'):
         conn = await self.get_connection(db_name)
         try:
