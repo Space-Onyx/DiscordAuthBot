@@ -1,4 +1,5 @@
 ﻿import asyncpg
+import re
 from dataConfig import (
     DATABASE_ASTRA,
     DATABASE_ASTRA_HOST,
@@ -13,6 +14,7 @@ from dataConfig import (
 )
 from datetime import datetime
 
+LINK_CODE_REGEX = re.compile(r"^[0-9A-F]{9}$")
 class DatabaseManagerSS14:
     """
     Класс для работы в БД ВП SS14
@@ -348,6 +350,206 @@ class DatabaseManagerSS14:
         if last_error and not linked_ids:
             print(f"Ошибка получения списка привязок: {last_error}")
         return linked_ids
+
+    @staticmethod
+    def _normalize_link_code(link_code: str | None) -> str:
+        if link_code is None:
+            return ""
+        return link_code.strip().upper()
+
+    async def _ensure_link_code_table(self, conn: asyncpg.Connection) -> None:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS discord_link_code (
+                user_id TEXT PRIMARY KEY,
+                code TEXT NOT NULL UNIQUE,
+                expires_at BIGINT NOT NULL
+            )
+        """)
+
+        schema_type = await conn.fetchval("""
+            SELECT data_type
+            FROM information_schema.columns
+            WHERE table_name = 'discord_link_code'
+              AND column_name = 'expires_at'
+            LIMIT 1
+        """)
+
+        if schema_type and "int" not in str(schema_type).lower():
+            await conn.execute("DROP TABLE IF EXISTS discord_link_code")
+            await conn.execute("""
+                CREATE TABLE discord_link_code (
+                    user_id TEXT PRIMARY KEY,
+                    code TEXT NOT NULL UNIQUE,
+                    expires_at BIGINT NOT NULL
+                )
+            """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS ix_discord_link_code_expires_at
+            ON discord_link_code (expires_at)
+        """)
+
+    async def _find_guid_by_link_code_in_db(self, link_code: str, db_name: str) -> str | None:
+        conn = await self.get_connection(db_name)
+        try:
+            await self._ensure_link_code_table(conn)
+            now_unix = int(datetime.utcnow().timestamp())
+            await conn.execute("DELETE FROM discord_link_code WHERE expires_at <= $1", now_unix)
+            result = await conn.fetchval(
+                "SELECT user_id FROM discord_link_code WHERE code = $1 AND expires_at > $2 LIMIT 1",
+                link_code,
+                now_unix
+            )
+            return str(result) if result else None
+        finally:
+            await conn.close()
+
+    async def _delete_link_code_in_db(self, link_code: str, db_name: str) -> tuple[bool, str]:
+        conn = await self.get_connection(db_name)
+        try:
+            await self._ensure_link_code_table(conn)
+            await conn.execute("DELETE FROM discord_link_code WHERE code = $1", link_code)
+            return True, "deleted"
+        except Exception as e:
+            return False, str(e)
+        finally:
+            await conn.close()
+
+    async def _claim_link_code_in_db(
+        self,
+        link_code: str,
+        db_name: str
+    ) -> tuple[bool, str | None, int | None, str]:
+        """
+        Атомарно «поглощает» код (delete-returning) и возвращает GUID + expires_at.
+        Если код уже использован/просрочен, вернет (True, None, None, "not_found").
+        """
+        conn = None
+        try:
+            conn = await self.get_connection(db_name)
+            async with conn.transaction():
+                await self._ensure_link_code_table(conn)
+                now_unix = int(datetime.utcnow().timestamp())
+                await conn.execute("DELETE FROM discord_link_code WHERE expires_at <= $1", now_unix)
+                row = await conn.fetchrow(
+                    """
+                    DELETE FROM discord_link_code
+                    WHERE code = $1 AND expires_at > $2
+                    RETURNING user_id, expires_at
+                    """,
+                    link_code,
+                    now_unix
+                )
+
+                if not row:
+                    return True, None, None, "not_found"
+
+                return True, str(row["user_id"]), int(row["expires_at"]), "claimed"
+        except Exception as e:
+            return False, None, None, str(e)
+        finally:
+            if conn:
+                await conn.close()
+
+    async def _restore_link_code_in_db(
+        self,
+        user_id: str,
+        link_code: str,
+        expires_at: int,
+        db_name: str
+    ) -> tuple[bool, str]:
+        """
+        Восстанавливает ранее atomically-claimed код, если привязка не завершилась.
+        """
+        conn = None
+        try:
+            conn = await self.get_connection(db_name)
+            async with conn.transaction():
+                await self._ensure_link_code_table(conn)
+                await conn.execute(
+                    """
+                    INSERT INTO discord_link_code (user_id, code, expires_at)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (user_id)
+                    DO UPDATE SET code = EXCLUDED.code, expires_at = EXCLUDED.expires_at
+                    """,
+                    user_id,
+                    link_code,
+                    expires_at
+                )
+            return True, "restored"
+        except Exception as e:
+            return False, str(e)
+        finally:
+            if conn:
+                await conn.close()
+
+    async def consume_link_code(self, link_code: str, db_name: str = 'astra') -> tuple[bool, str]:
+        code = self._normalize_link_code(link_code)
+        if not LINK_CODE_REGEX.fullmatch(code):
+            return False, "Неверный формат кода."
+
+        target_dbs = self._linked_lookup_order(db_name)
+        if not target_dbs:
+            return False, "Нет настроенных БД для удаления кода."
+
+        errors: list[str] = []
+        for current_db in target_dbs:
+            ok, message = await self._delete_link_code_in_db(code, current_db)
+            if not ok:
+                errors.append(f"{current_db.upper()}: {message}")
+
+        if errors:
+            return False, f"Код удален частично: {'; '.join(errors)}"
+
+        return True, "Код удален."
+
+    async def link_user_by_code(self, link_code: str, discord_id: str, db_name: str = 'astra') -> tuple[bool, str]:
+        code = self._normalize_link_code(link_code)
+        if not LINK_CODE_REGEX.fullmatch(code):
+            return False, "Неверный формат кода. Ожидается 9 HEX-символов."
+
+        if await self.is_linked(discord_id, db_name):
+            return False, "Аккаунт уже привязан."
+
+        target_dbs = self._linked_lookup_order(db_name)
+        if not target_dbs:
+            return False, "Нет настроенных БД для привязки."
+
+        guid: str | None = None
+        source_db: str | None = None
+        code_expires_at: int | None = None
+        errors: list[str] = []
+
+        for current_db in target_dbs:
+            ok, claimed_guid, expires_at, message = await self._claim_link_code_in_db(code, current_db)
+            if not ok:
+                errors.append(f"{current_db.upper()}: {message}")
+                continue
+
+            if claimed_guid:
+                guid = claimed_guid
+                source_db = current_db
+                code_expires_at = expires_at
+                break
+
+        if not guid:
+            if errors:
+                print(f"Ошибка поиска GUID по коду {code}: {'; '.join(errors)}")
+            return False, "Код недействителен или истек."
+
+        success, message = await self.link_user(guid, discord_id, source_db or db_name)
+        if not success and source_db and code_expires_at is not None:
+            restore_ok, restore_message = await self._restore_link_code_in_db(
+                guid,
+                code,
+                code_expires_at,
+                source_db
+            )
+            if not restore_ok:
+                message = f"{message} Не удалось восстановить код привязки: {restore_message}."
+
+        return success, message
 
     async def _insert_link_in_db(self, guid: str, discord_id: str, db_name: str) -> tuple[bool, bool, str]:
         conn = None

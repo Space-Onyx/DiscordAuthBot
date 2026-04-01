@@ -1,5 +1,4 @@
-import asyncio
-import uuid
+﻿import asyncio
 
 import disnake
 from disnake.ext import tasks
@@ -171,9 +170,9 @@ class NicknameModal(disnake.ui.Modal):
     def __init__(self):
         components = [
             disnake.ui.TextInput(
-                label="Введите UID SS14",
-                placeholder="UID из лобби SS14",
-                custom_id="guid",
+                label="Введите код привязки",
+                placeholder="9-значный HEX-код из лобби SS14",
+                custom_id="link_code",
                 style=disnake.TextInputStyle.short,
                 required=True,
             )
@@ -182,12 +181,12 @@ class NicknameModal(disnake.ui.Modal):
 
     async def callback(self, inter: disnake.ModalInteraction):
         await inter.response.defer(ephemeral=True)
-        guid = inter.text_values["guid"].strip()
+        link_code = inter.text_values["link_code"].strip()
         discord_id = str(inter.author.id)
 
-        if not guid:
-            await inter.send("❌ UID не может быть пустым.", ephemeral=True)
-            await _safe_send_tech_log(f"⚠️ Пользователь {inter.author.name} ({discord_id}) ввёл пустой UID.")
+        if not link_code:
+            await inter.send("❌ Код не может быть пустым.", ephemeral=True)
+            await _safe_send_tech_log(f"⚠️ Пользователь {inter.author.name} ({discord_id}) ввел пустой код.")
             return
 
         if await ss14_db.is_linked(discord_id):
@@ -197,16 +196,7 @@ class NicknameModal(disnake.ui.Modal):
             )
             return
 
-        try:
-            uuid.UUID(guid)
-        except ValueError:
-            await inter.send("⚠️ Вы ввели невалидный UID.", ephemeral=True)
-            await _safe_send_tech_log(
-                f"⚠️ Ошибка: {inter.author.name} ({discord_id}) ввёл невалидный UID {guid}."
-            )
-            return
-
-        success, message = await ss14_db.link_user(guid, discord_id)
+        success, message = await ss14_db.link_user_by_code(link_code, discord_id)
         await inter.send(message, ephemeral=True)
 
         if success:
@@ -219,14 +209,13 @@ class NicknameModal(disnake.ui.Modal):
                 added += a
 
             await _safe_send_tech_log(
-                f"✅ Привязка: {inter.author.name} ({discord_id}) к UID {guid}. RoleAdded={added}"
+                f"✅ Привязка: {inter.author.name} ({discord_id}) по коду {link_code.upper()}. RoleAdded={added}"
             )
             return
 
         await _safe_send_tech_log(
-            f"⚠️ Ошибка привязки для {inter.author.name} ({discord_id}) к UID {guid}: {message}."
+            f"⚠️ Ошибка привязки для {inter.author.name} ({discord_id}) по коду {link_code.upper()}: {message}."
         )
-
 
 class RegisterButton(disnake.ui.View):
     def __init__(self):
@@ -245,7 +234,7 @@ async def discord_auth_update():
 
     embed = disnake.Embed(
         title="Привязка аккаунта SS14",
-        description="Нажмите кнопку и введите UID.",
+        description="Нажмите кнопку и введите временный 9-значный HEX-код из лобби.",
         color=0x3498DB,
     )
 
@@ -260,3 +249,4 @@ async def discord_auth_update():
     else:
         new_message = await channel.send(embed=embed, view=RegisterButton())
         await new_message.pin()
+
