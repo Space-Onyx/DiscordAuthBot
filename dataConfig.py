@@ -123,17 +123,16 @@ USER_KEY_GITHUB = get_env("USER_KEY_GITHUB")
 POST_USER_AGENT = get_env_optional("POST_USER_AGENT") or "DiscordAuthBot/1.0"
 
 # Discord-каналы
-CHANNEL_AUTH_DISCORD = 1488907777941307453
-CHANNEL_LOG_AUTH_DISCORD = 1488986067364348014
-CHANNEL_STATUS_MESSAGE = 1488933475368042537
+CHANNEL_AUTH_DISCORD = get_env("CHANNEL_AUTH_DISCORD")
+CHANNEL_LOG_AUTH_DISCORD = get_env("CHANNEL_LOG_AUTH_DISCORD")
 
 # API для запросов от SS14 (глобальная отвязка из игры через бота).
 BOT_API_HOST = os.getenv("BOT_API_HOST", "127.0.0.1")
 BOT_API_PORT = get_env_int("BOT_API_PORT", 8088)
 BOT_API_TOKEN = get_env("BOT_API_TOKEN")
 
-VACATION_ROLE_ID = 1474158624136757526
-LINKED_ACCOUNT_ROLE_ID = None
+VACATION_ROLE_ID = get_env("VACATION_ROLE_ID")
+LINKED_ACCOUNT_ROLE_ID = get_env("LINKED_ACCOUNT_ROLE_ID")
 
 # Данные администратора для API.
 ADMIN_GUID = get_env("ADMIN_GUID")
@@ -146,8 +145,8 @@ DATA_ADMIN = {
     "Name": str(ADMIN_NAME),
 }
 
-LOG_CHANNEL_ID = 1488938774942715944
-MY_DS_ID = 1488894891013443705
+LOG_CHANNEL_ID = get_env("LOG_CHANNEL_ID")
+MY_DS_ID = get_env("MY_DS_ID")
 
 
 def _build_server(
@@ -381,6 +380,26 @@ if DEFAULT_DB_SERVER not in DATABASE_SERVERS:
 STATUS_MESSAGE_SERVER_NAME = _normalize_server_name(os.getenv("STATUS_MESSAGE_SERVER"))
 if STATUS_MESSAGE_SERVER_NAME not in SERVERS:
     STATUS_MESSAGE_SERVER_NAME = DEFAULT_SERVER_NAME
+
+def _parse_status_message_targets() -> list[tuple[str, int]]:
+    targets: list[tuple[str, int]] = []
+    for index, name in enumerate(SERVER_ORDER, start=1):
+        key = f"SERVER_{index}_STATUS_CHANNEL"
+        channel_id = get_env_optional(key)
+        if channel_id in (None, ""):
+            continue
+        try:
+            channel_int = int(channel_id)
+        except ValueError:
+            print(f"Некорректный канал статуса {key}: {channel_id}. Пропущено.")
+            continue
+        targets.append((name, channel_int))
+    return targets
+
+STATUS_MESSAGE_TARGETS = _parse_status_message_targets()
+
+def get_status_message_targets() -> list[tuple[str, int]]:
+    return STATUS_MESSAGE_TARGETS.copy()
 
 
 def get_server_names() -> list[str]:
