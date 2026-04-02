@@ -6,7 +6,7 @@
         {"name": "Карта", "value": "data.get('map', 'Неизвестно')", "inline": True},
         {"name": "Режим", "value": "data.get('preset', 'Неизвестно')", "inline": True},
         {"name": "Статус", "value": "status_text", "inline": True},
-        {"name": "Раунд идёт", "value": "round_length_text", "inline": True},
+        {"name": "Время раунда", "value": "round_length_text", "inline": True},
         {"name": "Раунд", "value": "data.get('round_id', '—')", "inline": True},
         {"name": "Бункер", "value": "'Включен' if data.get('panic_bunker') else 'Выключен'", "inline": True}
     ]
