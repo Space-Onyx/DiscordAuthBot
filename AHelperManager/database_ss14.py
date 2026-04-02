@@ -615,13 +615,12 @@ class DatabaseManagerSS14:
                 if rollback_errors:
                     rollback_suffix = f" Откат выполнен с ошибками: {'; '.join(rollback_errors)}"
 
-                return False, f"Ошибка привязки в БД {current_db.upper()}: {message}.{rollback_suffix}"
+                return False, f"Ошибка привязки {current_db.upper()}: {message}.{rollback_suffix}"
 
             if inserted:
                 inserted_dbs.append(current_db)
 
-        dbs_str = ", ".join(db.upper() for db in target_dbs)
-        return True, f"Аккаунт привязан в БД: {dbs_str}."
+        return True, f"Аккаунт привязан."
 
     async def unlink_user(self, discord_id: str, db_name: str = 'astra') -> tuple[bool, str]:
         target_dbs = self._linked_lookup_order(db_name)
@@ -645,8 +644,7 @@ class DatabaseManagerSS14:
             return False, f"Частичная отвязка (есть ошибки): {'; '.join(errors)}"
 
         if deleted_any:
-            dbs_str = ", ".join(db.upper() for db in target_dbs)
-            return True, f"Аккаунт отвязан в БД: {dbs_str}."
+            return True, f"Аккаунт отвязан."
 
         return False, "Аккаунт не привязан."
 
