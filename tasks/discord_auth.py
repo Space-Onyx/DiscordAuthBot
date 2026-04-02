@@ -14,7 +14,8 @@ def _resolve_linked_role_id() -> int | None:
     try:
         return int(LINKED_ACCOUNT_ROLE_ID)
     except (TypeError, ValueError):
-        print(f"[LinkedRoleSync] Invalid LINKED_ACCOUNT_ROLE_ID: {LINKED_ACCOUNT_ROLE_ID}")
+        if LINKED_ACCOUNT_ROLE_ID is not None:
+            print(f"[LinkedRoleSync] Invalid LINKED_ACCOUNT_ROLE_ID: {LINKED_ACCOUNT_ROLE_ID}")
         return None
 
 
