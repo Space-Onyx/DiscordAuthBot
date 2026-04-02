@@ -5,7 +5,7 @@ import disnake
 from disnake.ext.commands import has_any_role
 
 from bot_init import bot, ss14_db
-from dataConfig import DEFAULT_DB_SERVER, ROLE_ACCESS_ADMIN
+from dataConfig import DEFAULT_DB_SERVER, PROJECT_ACCESS_ROLES
 from server_utils import resolve_server_for_command
 
 
@@ -27,7 +27,7 @@ async def get_creation_date(uuid: str):
         return f"Ошибка: {e}"
 
 
-@has_any_role(*ROLE_ACCESS_ADMIN)
+@has_any_role(*PROJECT_ACCESS_ROLES)
 @bot.command(name="check_nick")
 async def check_nick_command(ctx, nickname: str, server: str = DEFAULT_DB_SERVER):
     server_name, error = resolve_server_for_command(server, db_required=True)
