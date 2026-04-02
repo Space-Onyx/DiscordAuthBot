@@ -9,7 +9,7 @@ from template_embed import embed_discord_link
 
 
 def _resolve_linked_role_id() -> int | None:
-    if LINKED_ACCOUNT_ROLE_ID in (None, "", 0, "0"):
+    if LINKED_ACCOUNT_ROLE_ID in (None, "", 0, "0", "none", "None", "null", "Null"):
         return None
     try:
         return int(LINKED_ACCOUNT_ROLE_ID)
