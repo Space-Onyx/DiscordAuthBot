@@ -68,6 +68,62 @@ def get_env_bool(key: str, default: bool) -> bool:
 def _normalize_server_name(value: str | None) -> str:
     return (value or "").strip().lower()
 
+def _load_config_data() -> dict[str, str]:
+    path = os.path.join(os.path.dirname(__file__), "configData.yml")
+    if not os.path.isfile(path):
+        return {}
+
+    data: dict[str, str] = {}
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            for raw_line in file:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if ":" not in line:
+                    continue
+                key, value = line.split(":", 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key:
+                    data[key] = value
+    except Exception as ex:
+        print(f"Не удалось прочитать configData.yml: {ex}")
+        return {}
+
+    return data
+
+def _cfg_get(cfg: dict[str, str], key: str, default: str | None = None) -> str | None:
+    if key in cfg:
+        return cfg[key]
+    return get_env_optional(key, default)
+
+def _cfg_get_int(cfg: dict[str, str], key: str, default: int) -> int:
+    value = _cfg_get(cfg, key, None)
+    if value is None or value == "":
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        print(f"Некорректное число в {key}: {value}. Используется {default}.")
+        return default
+
+def _cfg_get_optional_int(cfg: dict[str, str], key: str) -> int | None:
+    value = _cfg_get(cfg, key, None)
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized in ("", "null", "none", "0"):
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        print(f"Некорректное число в {key}: {value}. Используется None.")
+        return None
+
+# Опциональный YAML-конфиг (legacy configData.yml).
+_config_data = _load_config_data()
+
 
 # Токен Discord-бота.
 DISCORD_KEY = get_env("DISCORD_KEY")
@@ -77,17 +133,17 @@ USER_KEY_GITHUB = get_env("USER_KEY_GITHUB")
 POST_USER_AGENT = get_env_optional("POST_USER_AGENT") or "DiscordAuthBot/1.0"
 
 # Discord-каналы
-CHANNEL_AUTH_DISCORD = 1488741685579088060
-CHANNEL_LOG_AUTH_DISCORD = 1488892442819428445
-CHANNEL_STATUS_MESSAGE = 1488741442787606769
+CHANNEL_AUTH_DISCORD = _cfg_get_int(_config_data, "CHANNEL_AUTH_DISCORD", 1488741685579088060)
+CHANNEL_LOG_AUTH_DISCORD = _cfg_get_int(_config_data, "CHANNEL_LOG_AUTH_DISCORD", 1488892442819428445)
+CHANNEL_STATUS_MESSAGE = _cfg_get_int(_config_data, "CHANNEL_STATUS_MESSAGE", 1488741442787606769)
 
 # API для запросов от SS14 (глобальная отвязка из игры через бота).
 BOT_API_HOST = os.getenv("BOT_API_HOST", "127.0.0.1")
 BOT_API_PORT = get_env_int("BOT_API_PORT", 8088)
 BOT_API_TOKEN = get_env("BOT_API_TOKEN")
 
-VACATION_ROLE_ID = 1474158624136757526
-LINKED_ACCOUNT_ROLE_ID = None
+VACATION_ROLE_ID = _cfg_get_int(_config_data, "VACATION_ROLE_ID", 1474158624136757526)
+LINKED_ACCOUNT_ROLE_ID = _cfg_get_optional_int(_config_data, "LINKED_ACCOUNT_ROLE_ID")
 
 # Данные администратора для API.
 ADMIN_GUID = get_env("ADMIN_GUID")
@@ -100,8 +156,8 @@ DATA_ADMIN = {
     "Name": str(ADMIN_NAME),
 }
 
-LOG_CHANNEL_ID = 1488741685579088060
-MY_DS_ID = 1474158624136757530
+LOG_CHANNEL_ID = _cfg_get_int(_config_data, "LOG_CHANNEL_ID", 1488741685579088060)
+MY_DS_ID = _cfg_get_int(_config_data, "MY_DS_ID", 1474158624136757530)
 
 
 def _build_server(
