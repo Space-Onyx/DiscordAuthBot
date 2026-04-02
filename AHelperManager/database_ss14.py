@@ -1,4 +1,5 @@
 ﻿import asyncpg
+﻿import asyncio
 import re
 from dataConfig import (
     DATABASE_SERVERS,
@@ -8,14 +9,41 @@ from dataConfig import (
 from datetime import datetime
 
 LINK_CODE_REGEX = re.compile(r"^[0-9A-F]{9}$")
+
+
+class _PoolConnWrapper:
+    def __init__(self, conn: asyncpg.Connection, pool: asyncpg.Pool):
+        self._conn = conn
+        self._pool = pool
+        self._closed = False
+
+    def __getattr__(self, item):
+        return getattr(self._conn, item)
+
+    async def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        await self._pool.release(self._conn)
+
 class DatabaseManagerSS14:
     """
-    Класс для работы в БД ВП SS14
+    Класс для работы в БД SS14
     """
     def __init__(self):
         self.db_params = {name: params.copy() for name, params in DATABASE_SERVERS.items()}
         self.db_order = DB_SERVER_ORDER.copy()
         self.default_db_name = DEFAULT_DB_SERVER
+        self._pools: dict[str, asyncpg.Pool] = {}
+        self._pool_locks: dict[str, asyncio.Lock] = {}
+        self._command_timeout = 10
+
+    def _get_pool_lock(self, db_name: str) -> asyncio.Lock:
+        lock = self._pool_locks.get(db_name)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._pool_locks[db_name] = lock
+        return lock
 
     def _is_db_configured(self, db_name: str) -> bool:
         params = self.db_params.get(db_name)
@@ -50,7 +78,21 @@ class DatabaseManagerSS14:
 
         params = self.db_params[target_db]
         dsn = f"postgres://{params['user']}:{params['password']}@{params['host']}:{params['port']}/{params['database']}"
-        return await asyncpg.connect(dsn)
+        pool = self._pools.get(target_db)
+        if pool is None:
+            lock = self._get_pool_lock(target_db)
+            async with lock:
+                pool = self._pools.get(target_db)
+                if pool is None:
+                    pool = await asyncpg.create_pool(
+                        dsn,
+                        min_size=1,
+                        max_size=10,
+                        command_timeout=self._command_timeout,
+                    )
+                    self._pools[target_db] = pool
+        conn = await pool.acquire()
+        return _PoolConnWrapper(conn, pool)
 
     async def get_admin_name(self, guid: str, db_name: str = 'astra'):
         """
@@ -330,21 +372,36 @@ class DatabaseManagerSS14:
         return False
 
     async def get_all_linked_discord_ids(self, db_name: str = 'astra') -> set[str]:
-        linked_ids: set[str] = set()
-        last_error = None
-        for current_db in self._linked_lookup_order(db_name):
+        target_dbs = self._linked_lookup_order(db_name)
+        if not target_dbs:
+            return set()
+
+        async def _fetch_from_db(db_key: str) -> tuple[str, set[str], Exception | None]:
             conn = None
             try:
-                conn = await self.get_connection(current_db)
+                conn = await self.get_connection(db_key)
                 rows = await conn.fetch("SELECT DISTINCT discord_id FROM discord_user WHERE discord_id IS NOT NULL")
-                linked_ids.update(str(row["discord_id"]) for row in rows if row["discord_id"])
+                ids = {str(row["discord_id"]) for row in rows if row["discord_id"]}
+                return db_key, ids, None
             except Exception as e:
-                last_error = e
+                return db_key, set(), e
             finally:
                 if conn:
                     await conn.close()
-        if last_error and not linked_ids:
-            print(f"Ошибка получения списка привязок: {last_error}")
+
+        tasks = [_fetch_from_db(db_key) for db_key in target_dbs]
+        results = await asyncio.gather(*tasks, return_exceptions=False)
+
+        linked_ids: set[str] = set()
+        errors: list[str] = []
+        for db_key, ids, err in results:
+            linked_ids.update(ids)
+            if err:
+                errors.append(f"{db_key.upper()}: {err}")
+
+        if errors and not linked_ids:
+            print(f"Ошибка получения списка привязок: {'; '.join(errors)}")
+
         return linked_ids
 
     @staticmethod

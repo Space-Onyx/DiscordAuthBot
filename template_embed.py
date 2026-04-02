@@ -1,16 +1,17 @@
-﻿embed_status = {
-    "title": "data.get('name', 'Без названия')",
+﻿# Status embed config and static text
+embed_status = {
     "color": 0x00ff00,
     "fields": [
-        {"name": "Онлайн", "value": "f\"{data.get('players', 0)}/{data.get('soft_max_players', 0)}\"", "inline": True},
-        {"name": "Карта", "value": "data.get('map', 'Неизвестно')", "inline": True},
-        {"name": "Режим", "value": "data.get('preset', 'Неизвестно')", "inline": True},
-        {"name": "Статус", "value": "status_text", "inline": True},
-        {"name": "Время раунда", "value": "round_length_text", "inline": True},
-        {"name": "Раунд", "value": "data.get('round_id', '—')", "inline": True},
-        {"name": "Бункер", "value": "'Включен' if data.get('panic_bunker') else 'Выключен'", "inline": True}
-    ]
+        {"name": "Онлайн", "key": "online", "inline": True},
+        {"name": "Карта", "key": "map", "inline": True},
+        {"name": "Режим", "key": "preset", "inline": True},
+        {"name": "Статус", "key": "status", "inline": True},
+        {"name": "Длительность", "key": "duration", "inline": True},
+        {"name": "Раунд", "key": "round_id", "inline": True},
+        {"name": "Бункер", "key": "bunker", "inline": True},
+    ],
 }
+
 embed_log = {
     "title": "Использование команды",
     "color": 0x0099ff,
@@ -122,9 +123,9 @@ embed_admin_help = {
     "color": 0xFF0000,
     "description": "Префикс: `&`",
     "fields": [
-        {"name": "Управление правами", "value": '&admin <nickname> — Проверка прав админа.\n&list_permission <server> — Выводит список прав сервера (по умолчанию БД-сервер по умолчанию).\n&add_permission <username> \"<title>\" \"<permission>\" <server> — Добавить права на выбранном сервере.\n&del_permission <username> <server> — Удалить права на выбранном сервере.\n&tweak_permission <username> \"<title>\" \"<permission>\" <server> — Изменить права на выбранном сервере.', "inline": False},
+        {"name": "Управление правами", "value": '&admin <nickname> — Проверка прав админа.\n&list_permission <server> — Выводит список прав сервера (по умолчанию БД-сервер по умолчанию).\n&add_permission <username> "<title>" "<permission>" <server> — Добавить права на выбранном сервере.\n&del_permission <username> <server> — Удалить права на выбранном сервере.\n&tweak_permission <username> "<title>" "<permission>" <server> — Изменить права на выбранном сервере.', "inline": False},
         {"name": "Информация о игроке", "value": '&logs <username> <round> <server> — Ищет админ-логи за указанный раунд.\n&check_nick <nickname> <server> — Проверка на мультиаккаунт.\n&get_ckey <Discord id> — Получить ckey по ID дискорда.\n&notelist <nickname> <server> — Заметки игрока.\n&banlist <nickname> <server> — Банлист игрока.', "inline": False},
-        {"name": "Баны и модерация", "value": '&ban <nickname> \"<reason>\" <time> в минутах — Выдает бан игроку.\n&kick <nickname> \"<reason>\" — Кик.\n&pardon <ban_id> — Разбанивает игрока.', "inline": False},
+        {"name": "Баны и модерация", "value": '&ban <nickname> "<reason>" <time> в минутах — Выдает бан игроку.\n&kick <nickname> "<reason>" — Кик.\n&pardon <ban_id> — Разбанивает игрока.', "inline": False},
         {"name": "Сервер", "value": '&servers — Список серверов, доступных боту.\n&status <server> — Информация о сервере.\n&admin_info <server> — Подробная информация о сервере.\n&bunker <on/off> <server> — Включает/выключает бункер.', "inline": False},
     ]
 }
@@ -149,6 +150,3 @@ embed_help = {
         {"name": "\nРепозиторий бота:", "value": '🔗 Гитхаб: https://github.com/Space-Onyx/DiscordAuthBot | Оригинальный автор: [Darkiich](https://github.com/Darkiich)', "inline": False}
     ]
 }
-
-
-

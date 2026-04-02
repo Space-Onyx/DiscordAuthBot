@@ -246,84 +246,6 @@ def _load_servers_from_slots() -> list[dict[str, Any]]:
     return servers
 
 
-def _load_legacy_servers() -> list[dict[str, Any]]:
-    # Старый формат (astra/dev) — фолбэк для обратной совместимости.
-    address_astra = os.getenv("ADDRESS_ASTRA", "109.195.84.233")
-    address_dev = os.getenv("ADDRESS_DEV", "109.195.84.233")
-
-    status_port_astra = get_env_int("STATUS_PORT_ASTRA", 1616)
-    status_port_dev = get_env_int("STATUS_PORT_DEV", 1717)
-
-    admin_api_port_astra = get_env_int("ADMIN_API_PORT_ASTRA", status_port_astra)
-    admin_api_port_dev = get_env_int("ADMIN_API_PORT_DEV", status_port_dev)
-    admin_api_token_astra = get_env_optional("ADMIN_API_TOKEN_ASTRA", ADMIN_API)
-    admin_api_token_dev = get_env_optional("ADMIN_API_TOKEN_DEV", ADMIN_API)
-
-    post_port_astra = get_env_int("POST_PORT_ASTRA", 5000)
-    post_port_dev = get_env_int("POST_PORT_DEV", 5001)
-
-    post_password_astra = get_env_optional("POST_PASSWORD_ASTRA")
-    post_password_dev = get_env_optional("POST_PASSWORD_DEV")
-
-    post_authorization_astra = get_env_optional("POST_AUTHORIZATION_ASTRA")
-    post_authorization_dev = get_env_optional("POST_AUTHORIZATION_DEV")
-
-    database_host_default = get_env_optional("DATABASE_HOST")
-    database_port_default = get_env_optional("DATABASE_PORT")
-    database_user_default = get_env_optional("DATABASE_USER")
-    database_pass_default = get_env_optional("DATABASE_PASS")
-
-    database_astra = get_env_optional("DATABASE_ASTRA")
-    database_astra_host = get_env_optional("DATABASE_ASTRA_HOST", database_host_default)
-    database_astra_port = get_env_optional("DATABASE_ASTRA_PORT", database_port_default)
-    database_astra_user = get_env_optional("DATABASE_ASTRA_USER", database_user_default)
-    database_astra_pass = get_env_optional("DATABASE_ASTRA_PASS", database_pass_default)
-
-    database_dev = get_env_optional("DATABASE_DEV")
-    database_dev_host = get_env_optional("DATABASE_DEV_HOST", database_host_default)
-    database_dev_port = get_env_optional("DATABASE_DEV_PORT", database_port_default)
-    database_dev_user = get_env_optional("DATABASE_DEV_USER", database_user_default)
-    database_dev_pass = get_env_optional("DATABASE_DEV_PASS", database_pass_default)
-
-    servers = [
-        _build_server(
-            name="astra",
-            address=address_astra,
-            status_port=status_port_astra,
-            admin_api_port=admin_api_port_astra,
-            admin_api_token=admin_api_token_astra,
-            post_port=post_port_astra,
-            post_instance="ASTRA",
-            post_username="ASTRA",
-            post_password=post_password_astra,
-            post_authorization=post_authorization_astra,
-            db_name=database_astra,
-            db_host=database_astra_host,
-            db_port=database_astra_port,
-            db_user=database_astra_user,
-            db_pass=database_astra_pass,
-        ),
-        _build_server(
-            name="dev",
-            address=address_dev,
-            status_port=status_port_dev,
-            admin_api_port=admin_api_port_dev,
-            admin_api_token=admin_api_token_dev,
-            post_port=post_port_dev,
-            post_instance="DEV",
-            post_username="DEV",
-            post_password=post_password_dev,
-            post_authorization=post_authorization_dev,
-            db_name=database_dev,
-            db_host=database_dev_host,
-            db_port=database_dev_port,
-            db_user=database_dev_user,
-            db_pass=database_dev_pass,
-        ),
-    ]
-
-    return servers
-
 
 def _dedupe_servers(servers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[str] = set()
@@ -346,10 +268,7 @@ def _db_configured(server: dict[str, Any]) -> bool:
 
 
 _dynamic_servers = _load_servers_from_slots()
-if _dynamic_servers:
-    _all_servers = _dedupe_servers(_dynamic_servers)[:MAX_SERVERS]
-else:
-    _all_servers = _dedupe_servers(_load_legacy_servers())[:MAX_SERVERS]
+_all_servers = _dedupe_servers(_dynamic_servers)[:MAX_SERVERS]
 
 SERVERS: dict[str, dict[str, Any]] = {server["name"]: server for server in _all_servers}
 SERVER_ORDER: list[str] = [server["name"] for server in _all_servers]
@@ -376,10 +295,6 @@ if DEFAULT_DB_SERVER not in DATABASE_SERVERS:
         DEFAULT_DB_SERVER = DEFAULT_SERVER_NAME
     elif DB_SERVER_ORDER:
         DEFAULT_DB_SERVER = DB_SERVER_ORDER[0]
-
-STATUS_MESSAGE_SERVER_NAME = _normalize_server_name(os.getenv("STATUS_MESSAGE_SERVER"))
-if STATUS_MESSAGE_SERVER_NAME not in SERVERS:
-    STATUS_MESSAGE_SERVER_NAME = DEFAULT_SERVER_NAME
 
 def _parse_status_message_targets() -> list[tuple[str, int]]:
     targets: list[tuple[str, int]] = []
@@ -531,16 +446,3 @@ def build_post_headers(server_name: str | None = None, data: dict[str, Any] | No
         headers["Authorization"] = authorization
 
     return headers
-
-
-# --- Совместимость со старыми импортами ---
-ADDRESS_ASTRA = SERVERS.get("astra", {}).get("address", "")
-ADDRESS_DEV = SERVERS.get("dev", {}).get("address", "")
-
-DATA_ASTRA = build_post_data("astra") or {"Username": "ASTRA", "Password": None}
-DATA_DEV = build_post_data("dev") or {"Username": "DEV", "Password": None}
-
-HEADERS_ASTRA = build_post_headers("astra", DATA_ASTRA) or {}
-HEADERS_DEV = build_post_headers("dev", DATA_DEV) or {}
-
-POST_ADMIN_HEADERS = build_admin_headers(DEFAULT_SERVER_NAME) or {}
