@@ -6,7 +6,7 @@ embed_status = {
         {"name": "Карта", "key": "map", "inline": True},
         {"name": "Режим", "key": "preset", "inline": True},
         {"name": "Статус", "key": "status", "inline": True},
-        {"name": "Длительность", "key": "duration", "inline": True},
+        {"name": "Время раунда", "key": "duration", "inline": True},
         {"name": "Раунд", "key": "round_id", "inline": True},
         {"name": "Бункер", "key": "bunker", "inline": True},
     ],

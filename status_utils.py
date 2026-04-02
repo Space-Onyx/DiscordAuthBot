@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta
+﻿from datetime import datetime, timedelta, timezone
 from disnake import Embed
 from template_embed import embed_status
 
@@ -16,8 +16,10 @@ def compute_round_length_text(round_start_time: str | None) -> str:
         return "Не начался"
     try:
         start_dt = datetime.fromisoformat(round_start_time.replace("Z", "+00:00"))
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
         start_dt = start_dt + timedelta(hours=3)
-        now_dt = datetime.utcnow() + timedelta(hours=3)
+        now_dt = datetime.now(timezone.utc) + timedelta(hours=3)
         elapsed = now_dt - start_dt
         if elapsed.total_seconds() < 0:
             elapsed = timedelta(0)
