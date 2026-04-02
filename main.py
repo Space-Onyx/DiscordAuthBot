@@ -20,4 +20,7 @@ load_modules('commands.discord')
 load_modules('tasks')
 load_modules('events')
 
+if not DISCORD_KEY:
+    raise RuntimeError("DISCORD_KEY не задан в окружении (.env).")
+
 bot.run(DISCORD_KEY)

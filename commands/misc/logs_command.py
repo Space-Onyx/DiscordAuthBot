@@ -1,23 +1,25 @@
-﻿from bot_init import bot, ss14_db
-from dataConfig import ROLE_ACCESS_OBSERVER_ADMIN
-from disnake.ext.commands import has_any_role
+﻿from disnake.ext.commands import has_any_role
+
+from bot_init import bot, ss14_db
+from dataConfig import DEFAULT_DB_SERVER, ROLE_ACCESS_OBSERVER_ADMIN
+from server_utils import resolve_server_for_command
 
 
 @has_any_role(*ROLE_ACCESS_OBSERVER_ADMIN)
 @bot.command(name="logs")
-async def logs_command(ctx, username: str, round_id: int, db_name: str = "astra"):
+async def logs_command(ctx, username: str, round_id: int, db_name: str = DEFAULT_DB_SERVER):
     try:
-        db_name = db_name.lower()
-        if db_name not in ("astra", "dev"):
-            await ctx.send("Неверный сервер: astra или dev")
+        server_name, error = resolve_server_for_command(db_name, db_required=True)
+        if error:
+            await ctx.send(error)
             return
 
-        guid_admin = await ss14_db.get_player_guid(username, db_name)
+        guid_admin = await ss14_db.get_player_guid(username, server_name)
         if not guid_admin:
             await ctx.send("Пользователь не найден в БД.")
             return
 
-        results = await ss14_db.get_logs_by_round(username, round_id, db_name)
+        results = await ss14_db.get_logs_by_round(username, round_id, server_name)
         if not results:
             await ctx.send("Не найдено подозрительных логов админ-абуза.")
             return

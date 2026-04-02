@@ -1,16 +1,9 @@
 ﻿import asyncpg
 import re
 from dataConfig import (
-    DATABASE_ASTRA,
-    DATABASE_ASTRA_HOST,
-    DATABASE_ASTRA_PORT,
-    DATABASE_ASTRA_USER,
-    DATABASE_ASTRA_PASS,
-    DATABASE_DEV,
-    DATABASE_DEV_HOST,
-    DATABASE_DEV_PORT,
-    DATABASE_DEV_USER,
-    DATABASE_DEV_PASS,
+    DATABASE_SERVERS,
+    DB_SERVER_ORDER,
+    DEFAULT_DB_SERVER,
 )
 from datetime import datetime
 
@@ -20,22 +13,9 @@ class DatabaseManagerSS14:
     Класс для работы в БД ВП SS14
     """
     def __init__(self):
-        self.db_params = {
-            'astra': {
-                'database': DATABASE_ASTRA,
-                'user': DATABASE_ASTRA_USER,
-                'password': DATABASE_ASTRA_PASS,
-                'host': DATABASE_ASTRA_HOST,
-                'port': DATABASE_ASTRA_PORT
-            },
-            'dev': {
-                'database': DATABASE_DEV,
-                'user': DATABASE_DEV_USER,
-                'password': DATABASE_DEV_PASS,
-                'host': DATABASE_DEV_HOST,
-                'port': DATABASE_DEV_PORT
-            }
-        }
+        self.db_params = {name: params.copy() for name, params in DATABASE_SERVERS.items()}
+        self.db_order = DB_SERVER_ORDER.copy()
+        self.default_db_name = DEFAULT_DB_SERVER
 
     def _is_db_configured(self, db_name: str) -> bool:
         params = self.db_params.get(db_name)
@@ -44,25 +24,31 @@ class DatabaseManagerSS14:
         required = ('database', 'user', 'password', 'host', 'port')
         return all(params.get(key) not in (None, '') for key in required)
 
-    def _linked_lookup_order(self, db_name: str) -> list[str]:
-        if db_name == 'astra':
-            order = ['astra', 'dev']
-            return [db for db in order if self._is_db_configured(db)]
-        if db_name == 'dev':
-            order = ['dev', 'astra']
-            return [db for db in order if self._is_db_configured(db)]
-        if self._is_db_configured(db_name):
-            return [db_name]
-        return []
+    def _linked_lookup_order(self, db_name: str | None = None) -> list[str]:
+        configured = [db for db in self.db_order if self._is_db_configured(db)]
+        if not configured:
+            return []
 
-    async def get_connection(self, db_name='astra'):
+        preferred = (db_name or self.default_db_name or "").strip().lower()
+        if preferred and preferred in configured:
+            return [preferred] + [db for db in configured if db != preferred]
+
+        return configured
+
+    async def get_connection(self, db_name: str | None = None):
         """Возвращает асинхронное соединение с указанной базой данных"""
-        if db_name not in self.db_params:
-            raise ValueError(f"Неизвестное имя БД: {db_name}")
-        if not self._is_db_configured(db_name):
-            raise ValueError(f"БД {db_name} не настроена")
+        target_db = (db_name or self.default_db_name or "").strip().lower()
 
-        params = self.db_params[db_name]
+        if target_db not in self.db_params:
+            if self.default_db_name and self.default_db_name in self.db_params:
+                target_db = self.default_db_name
+            else:
+                raise ValueError(f"Неизвестное имя БД: {db_name}")
+
+        if not self._is_db_configured(target_db):
+            raise ValueError(f"БД {target_db} не настроена")
+
+        params = self.db_params[target_db]
         dsn = f"postgres://{params['user']}:{params['password']}@{params['host']}:{params['port']}/{params['database']}"
         return await asyncpg.connect(dsn)
 
@@ -113,12 +99,22 @@ class DatabaseManagerSS14:
         """
         Получает discord id по GUID пользователя.
         """
-        conn = await self.get_connection(db_name)
-        try:
-            result = await conn.fetchval("SELECT discord_id FROM discord_user WHERE user_id = $1", user_id)
-            return result
-        finally:
-            await conn.close()
+        last_error = None
+        for current_db in self._linked_lookup_order(db_name):
+            conn = None
+            try:
+                conn = await self.get_connection(current_db)
+                result = await conn.fetchval("SELECT discord_id FROM discord_user WHERE user_id = $1", user_id)
+                if result:
+                    return result
+            except Exception as e:
+                last_error = e
+            finally:
+                if conn:
+                    await conn.close()
+        if last_error:
+            print(f"Ошибка поиска discord_id по user_id={user_id}: {last_error}")
+        return None
 
     async def get_player_name(self, guid: str, db_name: str = 'astra'):
         """
@@ -593,6 +589,25 @@ class DatabaseManagerSS14:
             if conn:
                 await conn.close()
 
+    async def _delete_link_by_user_id_in_db(self, user_id: str, db_name: str) -> tuple[bool, bool, str, str | None]:
+        conn = None
+        try:
+            conn = await self.get_connection(db_name)
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "DELETE FROM discord_user WHERE user_id = $1 RETURNING discord_id",
+                    user_id
+                )
+                if row and row["discord_id"]:
+                    return True, True, "deleted", str(row["discord_id"])
+
+                return True, False, "not_found", None
+        except Exception as e:
+            return False, False, str(e), None
+        finally:
+            if conn:
+                await conn.close()
+
     async def link_user(self, guid: str, discord_id: str, db_name: str = 'astra'):
         target_dbs = self._linked_lookup_order(db_name)
         if not target_dbs:
@@ -621,11 +636,7 @@ class DatabaseManagerSS14:
                 already_linked_dbs.append(current_db)
 
         if not inserted_dbs and len(already_linked_dbs) == len(target_dbs):
-            await inter.send("❌ Аккаунт уже привязан.", ephemeral=True)
-            await _safe_send_tech_log(
-                f"⚠️ Пользователь {inter.author.name} ({discord_id}) пытался повторно привязать аккаунт."
-            )
-            return
+            return False, "Аккаунт уже привязан во всех доступных БД."
 
         return True, "Аккаунт привязан."
 
@@ -655,6 +666,62 @@ class DatabaseManagerSS14:
 
         return False, "Аккаунт не привязан."
 
+    async def unlink_user_global(
+        self,
+        user_id: str | None = None,
+        discord_id: str | None = None,
+        db_name: str = "astra"
+    ) -> tuple[bool, str, str | None]:
+        normalized_user_id = (user_id or "").strip()
+        normalized_discord_id = (discord_id or "").strip()
+
+        if not normalized_user_id and not normalized_discord_id:
+            return False, "Не указан user_id или discord_id.", None
+
+        target_dbs = self._linked_lookup_order(db_name)
+        if not target_dbs:
+            return False, "Нет настроенных БД для отвязки.", None
+
+        resolved_discord_id = normalized_discord_id or None
+        deleted_any = False
+        errors: list[str] = []
+
+        if normalized_user_id:
+            for current_db in target_dbs:
+                ok, deleted, message, deleted_discord_id = await self._delete_link_by_user_id_in_db(
+                    normalized_user_id,
+                    current_db
+                )
+                if not ok:
+                    errors.append(f"{current_db.upper()}: {message}")
+                    continue
+
+                if deleted:
+                    deleted_any = True
+                    if deleted_discord_id and resolved_discord_id is None:
+                        resolved_discord_id = deleted_discord_id
+
+        # Дополнительный проход по discord_id для полной очистки конфликтных хвостов.
+        if normalized_discord_id:
+            for current_db in target_dbs:
+                ok, deleted, message = await self._delete_link_in_db(normalized_discord_id, current_db)
+                if not ok:
+                    errors.append(f"{current_db.upper()}: {message}")
+                    continue
+                if deleted:
+                    deleted_any = True
+
+        if errors and not deleted_any:
+            return False, f"Ошибка отвязки: {'; '.join(errors)}", resolved_discord_id
+
+        if errors and deleted_any:
+            return False, f"Частичная отвязка (есть ошибки): {'; '.join(errors)}", resolved_discord_id
+
+        if deleted_any:
+            return True, "Аккаунт отвязан.", resolved_discord_id
+
+        return False, "Аккаунт не привязан.", resolved_discord_id
+
     async def get_logs_by_round(self, username: str, round_id: int, db_name: str = 'astra'):
         conn = await self.get_connection(db_name)
         try:
@@ -676,3 +743,6 @@ class DatabaseManagerSS14:
             return result
         finally:
             await conn.close()
+
+
+

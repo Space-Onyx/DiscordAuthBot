@@ -1,4 +1,4 @@
-from disnake.ext.commands import has_any_role
+﻿from disnake.ext.commands import has_any_role
 
 from bot_init import bot, ss14_db
 from dataConfig import ROLE_ACCESS_TOP_HEADS

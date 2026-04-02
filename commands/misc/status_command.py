@@ -1,35 +1,36 @@
-import aiohttp
-from bot_init import bot
-from template_embed import embed_status
-from dataConfig import ADDRESS_ASTRA, ADDRESS_DEV
+﻿import aiohttp
 from disnake import Embed
 
-'''Команда для получения информации о сервере ASTRA/DEV'''
+from bot_init import bot
+from dataConfig import DEFAULT_SERVER_NAME, build_status_url
+from server_utils import resolve_server_for_command
+from template_embed import embed_status
+
+
 @bot.command(name="status")
-async def status_command(ctx, server: str = "astra"):
-    if server.lower() == "astra":
-        address = ADDRESS_ASTRA
-        port = "1616"
-    elif server.lower() == "dev":
-        address = ADDRESS_DEV
-        port = "1717"
-    else:
-        await ctx.send("Неверный сервер: dev или astra")
+async def status_command(ctx, server: str = DEFAULT_SERVER_NAME):
+    server_name, error = resolve_server_for_command(server)
+    if error:
+        await ctx.send(error)
         return
 
-    url = f"http://{address}:{port}/status"
+    url = build_status_url(server_name)
+    if not url:
+        await ctx.send("Не удалось сформировать URL статуса для выбранного сервера.")
+        return
 
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-
-                    embed = Embed(title=embed_status["title"], color=embed_status["color"])
-                    for field in embed_status["fields"]:
-                        embed.add_field(name=field["name"], value=eval(field["value"]), inline=field["inline"])
-                    await ctx.send(embed=embed)
-                else:
+                if resp.status != 200:
                     await ctx.send(f"Ошибка: код {resp.status}")
+                    return
+
+                data = await resp.json()
+                embed = Embed(title=embed_status["title"], color=embed_status["color"])
+                for field in embed_status["fields"]:
+                    embed.add_field(name=field["name"], value=eval(field["value"]), inline=field["inline"])
+                embed.set_footer(text=f"Сервер: {server_name}")
+                await ctx.send(embed=embed)
     except Exception as e:
         await ctx.send(f"Ошибка: {e}")

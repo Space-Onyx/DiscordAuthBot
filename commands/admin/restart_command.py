@@ -1,38 +1,40 @@
-import aiohttp
-
-from bot_init import bot
-from dataConfig import ADDRESS_ASTRA, ADDRESS_DEV, DATA_ASTRA, DATA_DEV, HEADERS_ASTRA, HEADERS_DEV, ROLE_ACCESS_HEADS
+﻿import aiohttp
 from disnake.ext.commands import has_any_role
 
-'''Команда для рестарта сервера ASTRA/DEV'''
+from bot_init import bot
+from dataConfig import (
+    DEFAULT_SERVER_NAME,
+    ROLE_ACCESS_HEADS,
+    build_post_data,
+    build_post_headers,
+    build_restart_url,
+)
+from server_utils import resolve_server_for_command
+
+
 @has_any_role(*ROLE_ACCESS_HEADS)
 @bot.command(name="restart")
-async def restart_command(ctx, server: str = "astra"):
-    if server.lower() == "astra":
-        address = ADDRESS_ASTRA
-        instance = "ASTRA"
-        port = 5000
-        data = DATA_ASTRA
-        headers = HEADERS_ASTRA
-    elif server.lower() == "dev":
-        address = ADDRESS_DEV
-        instance = "DEV"
-        port = 5001
-        data = DATA_DEV
-        headers = HEADERS_DEV
-    else:
-        await ctx.send("Неверный сервер: dev или astra")
+async def restart_command(ctx, server: str = DEFAULT_SERVER_NAME):
+    server_name, error = resolve_server_for_command(server)
+    if error:
+        await ctx.send(error)
         return
 
-    url = f"http://{address}:{port}/instances/{instance}/restart"
+    url = build_restart_url(server_name)
+    data = build_post_data(server_name)
+    headers = build_post_headers(server_name, data)
 
-    await ctx.send(f"Запущен рестарт {server.upper()} сервера...")
+    if not url or data is None or headers is None:
+        await ctx.send("Не удалось сформировать запрос рестарта.")
+        return
+
+    await ctx.send(f"Запущен рестарт {server_name.upper()} сервера...")
 
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, data=data, headers=headers) as resp:
                 if resp.status == 200:
-                    await ctx.send(f"✅ Рестарт {server.upper()} выполнен.")
+                    await ctx.send(f"✅ Рестарт {server_name.upper()} выполнен.")
                 else:
                     await ctx.send(f"Ошибка: код {resp.status}")
     except Exception as e:

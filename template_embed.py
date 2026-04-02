@@ -91,8 +91,8 @@ embed_git_help = {
     "fields": [
         {"name": "&publish <branch>. По умолчанию master", "value": "Отправляет запрос на паблиш ветки.", "inline": False},
         {"name": "&publish_status", "value": "Показывает статус последнего запуска GitHub Actions workflow publish-adt.yml.", "inline": False},
-        {"name": "&update <mrp/dev>. По умолчанию mrp", "value": "Обновляет сервер.", "inline": False},
-        {"name": "&restart <mrp/dev>. По умолчанию mrp", "value": "Перезагружает сервер.", "inline": False},
+        {"name": "&update <server>", "value": "Обновляет выбранный сервер (если не указан — сервер по умолчанию).", "inline": False},
+        {"name": "&restart <server>", "value": "Перезагружает выбранный сервер (если не указан — сервер по умолчанию).", "inline": False},
         {"name": "&git_repoinfo", "value": "Показывает информацию о репозитории.", "inline": False},
         {"name": "&git_team", "value": "Показывает участников организации AdventureTimeSS14.", "inline": False},
         {"name": "&git_invite <username>", "value": "Приглашает пользователя в организацию.", "inline": False},
@@ -124,10 +124,10 @@ embed_admin_help = {
     "color": 0xFF0000,
     "description": "Префикс: `&`",
     "fields": [
-        {"name": "Управление правами", "value": '&admin <nickname> — Проверка прав админа.\n&list_permission <mrp/dev> (по умолчанию mrp) - выводит список прав сервера\n&add_permission <username> \"<title>\" \"<permission>\" <server> — Добавить права на сервере DEV/MRP.\n&del_permission <username> <server> — Удалить права на сервере DEV/MRP.\n&tweak_permission <username> \"<title>\" \"<permission>\" <server> — Изменить права на сервере DEV/MRP.', "inline": False},
-        {"name": "Информация о игроке", "value": '&logs <username> <round> <server> - Ищет админабуз админа за указанный раунд.\n&check_nick <nickname> — Проверка на мультиаккаунт.\n&get_ckey <Discord id> — Получить ckey по ID дискорда.\n&notelist <nickname> — Заметки игрока.\n&banlist <nickname> — Банлист игрока.', "inline": False},
+        {"name": "Управление правами", "value": '&admin <nickname> — Проверка прав админа.\n&list_permission <server> — Выводит список прав сервера (по умолчанию БД-сервер по умолчанию).\n&add_permission <username> \"<title>\" \"<permission>\" <server> — Добавить права на выбранном сервере.\n&del_permission <username> <server> — Удалить права на выбранном сервере.\n&tweak_permission <username> \"<title>\" \"<permission>\" <server> — Изменить права на выбранном сервере.', "inline": False},
+        {"name": "Информация о игроке", "value": '&logs <username> <round> <server> — Ищет админ-логи за указанный раунд.\n&check_nick <nickname> <server> — Проверка на мультиаккаунт.\n&get_ckey <Discord id> — Получить ckey по ID дискорда.\n&notelist <nickname> <server> — Заметки игрока.\n&banlist <nickname> <server> — Банлист игрока.', "inline": False},
         {"name": "Баны и модерация", "value": '&ban <nickname> \"<reason>\" <time> в минутах — Выдает бан игроку.\n&kick <nickname> \"<reason>\" — Кик.\n&pardon <ban_id> — Разбанивает игрока.', "inline": False},
-        {"name": "Сервер", "value": '&status <mrp/dev> (по умолчанию mrp) - Информация о сервере\n&admin_info — Подробная информация о сервере.\n&bunker <on/off> — Включает/выключает бункер.', "inline": False},
+        {"name": "Сервер", "value": '&servers — Список серверов, доступных боту.\n&status <server> — Информация о сервере.\n&admin_info <server> — Подробная информация о сервере.\n&bunker <on/off> <server> — Включает/выключает бункер.', "inline": False},
     ]
 }
 
@@ -140,18 +140,9 @@ embed_help = {
     "title": "Список команд бота",
     "color": 0x0099ff,
     "fields": [
-        {"name": "Основные команды", "value": '🤖 &help - Вывод всех команд бота.\n😈 &admin_help - Вывод админ-команд для взаимодействия с игровым сервером.\n🔍 &check - проверяет работу бота\n🎭 &user_role <роль> - выводит список пользователнй с этой ролью\n🎮 &status - выводит информацию о игровом сервере в данный момент', "inline": False},
+        {"name": "Основные команды", "value": '🤖 &help — Вывод всех команд бота.\n😈 &admin_help — Вывод админ-команд для взаимодействия с игровым сервером.\n🔍 &check — Проверяет работу бота.\n🎭 &user_role <роль> — Выводит список пользователей с этой ролью.\n🧭 &servers — Показывает серверы, доступные боту.\n🎮 &status <server> — Выводит информацию о выбранном игровом сервере.', "inline": False},
         {"name": "\nЧто ещё умеет бот:", "value": '📢 Обновлять статус сервера в канале #https://discord.com/channels/1474158623834898648/1488933475368042537\n📖 Обновлять список команды проекта в указаном канале.', "inline": False},
         {"name": "\nРепозиторий бота:", "value": '🔗 Гитхаб: https://github.com/Space-Onyx/DiscordAuthBot | Оригинальный автор: [Darkiich](https://github.com/Darkiich)', "inline": False}
     ]
 }
 
-embed_sponsor_help = {
-    "title": "Список команд для работы со спонсорами",
-    "color": 0xFFD700,
-    "fields": [
-        {"name": "&sponsor <username>", "value": 'Показывает информацию о спонсоре по его никнейму.', "inline": False},
-        {"name": "&add_sponsor <username> <tier> <date>", "value": 'Добавляет пользователя в спонсоры. Дата в формате YYYY-MM-DD.', "inline": False},
-        {"name": "&del_sponsor <username>", "value": 'Удаляет пользователя из спонсоров.', "inline": False},
-    ]
-}

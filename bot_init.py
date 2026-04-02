@@ -2,9 +2,10 @@ from disnake import Intents
 from disnake.ext.commands import Bot
 from AHelperManager.database_ss14 import DatabaseManagerSS14
 
-intent = Intents.all()
+# Minimal intents required for prefix commands and guild operations.
+# This avoids requesting unnecessary privileged intents from Intents.all().
+intent = Intents.default()
 intent.message_content = True
-intent.members = True
 intent.guilds = True
 intent.guild_messages = True
 intent.guild_reactions = True

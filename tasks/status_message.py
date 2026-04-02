@@ -1,10 +1,11 @@
-from bot_init import bot
-from dataConfig import CHANNEL_STATUS_MESSAGE, ADDRESS_ASTRA
+﻿import aiohttp
 from disnake import Embed
+from disnake.ext import tasks
+
+from bot_init import bot
+from dataConfig import CHANNEL_STATUS_MESSAGE, STATUS_MESSAGE_SERVER_NAME, build_status_url, resolve_server_name
 from template_embed import embed_status
 
-import aiohttp
-from disnake.ext import tasks
 
 @tasks.loop(minutes=2)
 async def status_update():
@@ -12,20 +13,24 @@ async def status_update():
     if not channel:
         return
 
-    url = f"http://{ADDRESS_ASTRA}:1616/status"
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    embed = Embed(title=embed_status["title"], color=embed_status["color"])
-                    for field in embed_status["fields"]:
-                        embed.add_field(name=field["name"], value=eval(field["value"]), inline=field["inline"])
-                else:
-                    embed = Embed(title="Ошибка", description=f"Код {resp.status}", color=0xff0000)
-    except Exception as e:
-        embed = Embed(title="Ошибка", description=str(e), color=0xff0000)
+    resolved_server = resolve_server_name(STATUS_MESSAGE_SERVER_NAME)
+    url = build_status_url(resolved_server)
+    if not url:
+        embed = Embed(title="Ошибка", description="Не настроен сервер для статус-сообщения.", color=0xFF0000)
+    else:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        embed = Embed(title=embed_status["title"], color=embed_status["color"])
+                        for field in embed_status["fields"]:
+                            embed.add_field(name=field["name"], value=eval(field["value"]), inline=field["inline"])
+                        embed.set_footer(text=f"Сервер: {resolved_server or 'не задан'}")
+                    else:
+                        embed = Embed(title="Ошибка", description=f"Код {resp.status}", color=0xFF0000)
+        except Exception as e:
+            embed = Embed(title="Ошибка", description=str(e), color=0xFF0000)
 
     pinned = []
     async for msg in channel.pins():
