@@ -1,4 +1,5 @@
 ﻿import aiohttp
+from datetime import datetime, timedelta
 from disnake import Embed
 
 from bot_init import bot
@@ -34,11 +35,30 @@ async def status_command(ctx, server: str = DEFAULT_SERVER_NAME):
                     status_text = "Ожидание"
                 else:
                     status_text = "Неизвестно"
+
+                round_start_time = data.get("round_start_time")
+                round_length_text = "Не начался"
+                if round_start_time:
+                    try:
+                        start_dt = datetime.fromisoformat(round_start_time.replace("Z", "+00:00"))
+                        start_dt = start_dt + timedelta(hours=3)
+                        now_dt = datetime.utcnow() + timedelta(hours=3)
+                        elapsed = now_dt - start_dt
+                        if elapsed.total_seconds() < 0:
+                            elapsed = timedelta(0)
+                        total_minutes = int(elapsed.total_seconds() // 60)
+                        hours = total_minutes // 60
+                        minutes = total_minutes % 60
+                        round_length_text = f"{hours:02d}ч {minutes:02d}м"
+                    except Exception:
+                        round_length_text = "Не начался"
+
                 title_value = embed_status["title"]
                 try:
                     title_value = eval(title_value)
                 except Exception:
                     title_value = str(title_value)
+
                 embed = Embed(title=title_value, color=embed_status["color"])
                 if "description" in embed_status:
                     embed.description = eval(embed_status["description"])
