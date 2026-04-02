@@ -23,7 +23,23 @@ async def status_update():
                 async with session.get(url) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        embed = Embed(title=embed_status["title"], color=embed_status["color"])
+                        run_level = data.get("run_level")
+                        if run_level == 1:
+                            status_text = "Раунд идет"
+                        elif run_level == 0:
+                            status_text = "Ожидание"
+                        else:
+                            status_text = "Неизвестно"
+
+                        title_value = embed_status["title"]
+                        try:
+                            title_value = eval(title_value)
+                        except Exception:
+                            title_value = str(title_value)
+
+                        embed = Embed(title=title_value, color=embed_status["color"])
+                        if "description" in embed_status:
+                            embed.description = eval(embed_status["description"])
                         for field in embed_status["fields"]:
                             embed.add_field(name=field["name"], value=eval(field["value"]), inline=field["inline"])
                         embed.set_footer(text=f"Сервер: {resolved_server or 'не задан'}")
