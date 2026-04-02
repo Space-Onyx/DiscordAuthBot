@@ -27,7 +27,16 @@ async def status_command(ctx, server: str = DEFAULT_SERVER_NAME):
                     return
 
                 data = await resp.json()
+                run_level = data.get("run_level")
+                if run_level == 1:
+                    status_text = "Раунд идет"
+                elif run_level == 0:
+                    status_text = "Ожидание"
+                else:
+                    status_text = "Неизвестно"
                 embed = Embed(title=embed_status["title"], color=embed_status["color"])
+                if "description" in embed_status:
+                    embed.description = eval(embed_status["description"])
                 for field in embed_status["fields"]:
                     embed.add_field(name=field["name"], value=eval(field["value"]), inline=field["inline"])
                 embed.set_footer(text=f"Сервер: {server_name}")

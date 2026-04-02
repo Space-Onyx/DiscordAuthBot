@@ -1,18 +1,15 @@
 ﻿embed_status = {
-   "title": "Статус сервера",
+    "title": "data.get('name', 'Без названия')",
     "color": 0x00ff00,
     "fields": [
-        {"name": "Название", "value": "data['name']", "inline": False},
-        {"name": "Игроки", "value": "data['players']", "inline": False},
-        {"name": "Максимум игроков", "value": "data['soft_max_players']", "inline": False},
-        {"name": "Карта", "value": "data['map']", "inline": False},
-        {"name": "Статус", "value": "'Раунд идёт' if data['run_level'] == 1 else 'Неизвестно'", "inline": False},
-        {"name": "Раунд ID", "value": "data['round_id']", "inline": False},
-        {"name": "Режим", "value": "data['preset']", "inline": False},
-        {"name": "Бункер", "value": "data['panic_bunker']", "inline": False}
+        {"name": "Онлайн", "value": "f\"{data.get(''players'', 0)}/{data.get(''soft_max_players'', 0)}\"", "inline": True},
+        {"name": "Карта", "value": "data.get(''map'', ''Неизвестно'')", "inline": True},
+        {"name": "Режим", "value": "data.get(''preset'', ''Неизвестно'')", "inline": True},
+        {"name": "Статус", "value": "status_text", "inline": True},
+        {"name": "Раунд", "value": "data.get(''round_id'', ''—'')", "inline": True},
+        {"name": "Бункер", "value": "''Включен'' if data.get(''panic_bunker'') else ''Выключен''", "inline": True}
     ]
 }
-
 embed_log = {
     "title": "Использование команды",
     "color": 0x0099ff,
@@ -151,4 +148,5 @@ embed_help = {
         {"name": "\nРепозиторий бота:", "value": '🔗 Гитхаб: https://github.com/Space-Onyx/DiscordAuthBot | Оригинальный автор: [Darkiich](https://github.com/Darkiich)', "inline": False}
     ]
 }
+
 
