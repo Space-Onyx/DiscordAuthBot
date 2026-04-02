@@ -2,12 +2,12 @@
     "title": "data.get('name', 'Без названия')",
     "color": 0x00ff00,
     "fields": [
-        {"name": "Онлайн", "value": "f\"{data.get(''players'', 0)}/{data.get(''soft_max_players'', 0)}\"", "inline": True},
-        {"name": "Карта", "value": "data.get(''map'', ''Неизвестно'')", "inline": True},
-        {"name": "Режим", "value": "data.get(''preset'', ''Неизвестно'')", "inline": True},
+        {"name": "Онлайн", "value": "f\"{data.get('players', 0)}/{data.get('soft_max_players', 0)}\"", "inline": True},
+        {"name": "Карта", "value": "data.get('map', 'Неизвестно')", "inline": True},
+        {"name": "Режим", "value": "data.get('preset', 'Неизвестно')", "inline": True},
         {"name": "Статус", "value": "status_text", "inline": True},
-        {"name": "Раунд", "value": "data.get(''round_id'', ''—'')", "inline": True},
-        {"name": "Бункер", "value": "''Включен'' if data.get(''panic_bunker'') else ''Выключен''", "inline": True}
+        {"name": "Раунд", "value": "data.get('round_id', '—')", "inline": True},
+        {"name": "Бункер", "value": "'Включен' if data.get('panic_bunker') else 'Выключен'", "inline": True}
     ]
 }
 embed_log = {
@@ -148,5 +148,6 @@ embed_help = {
         {"name": "\nРепозиторий бота:", "value": '🔗 Гитхаб: https://github.com/Space-Onyx/DiscordAuthBot | Оригинальный автор: [Darkiich](https://github.com/Darkiich)', "inline": False}
     ]
 }
+
 
 
