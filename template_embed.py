@@ -136,6 +136,12 @@ embed_list_permission = {
     "color": 0xFF0000
 }
 
+embed_discord_link = {
+    "title": "Привязка аккаунта SS14",
+    "description": "Нажмите кнопку и введите временный код для привязки аккаунта SS14.",
+    "color": 0x3498DB,
+}
+
 embed_help = {
     "title": "Список команд бота",
     "color": 0x0099ff,

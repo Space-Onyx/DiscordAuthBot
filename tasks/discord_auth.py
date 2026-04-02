@@ -5,6 +5,7 @@ from disnake.ext import tasks
 
 from bot_init import bot, ss14_db
 from dataConfig import CHANNEL_AUTH_DISCORD, CHANNEL_LOG_AUTH_DISCORD, LINKED_ACCOUNT_ROLE_ID
+from template_embed import embed_discord_link
 
 
 def _resolve_linked_role_id() -> int | None:
@@ -201,8 +202,10 @@ class NicknameModal(disnake.ui.Modal):
                 a, _ = await set_linked_role_for_discord_id(discord_id, True)
                 added += a
 
+            uid = await ss14_db.get_player_guid_by_discord_id(discord_id)
+            uid_text = uid or "неизвестен"
             await _safe_send_tech_log(
-                f"✅ Привязка: {inter.author.name} ({discord_id}) по коду {link_code.upper()}. RoleAdded={added}"
+                f"✅ Привязка: {inter.author.name} ({discord_id}) к UID {uid_text}. RoleAdded={added}"
             )
             return
 
@@ -226,9 +229,9 @@ async def discord_auth_update():
         return
 
     embed = disnake.Embed(
-        title="Привязка аккаунта SS14",
-        description="Нажмите кнопку и введите временный 9-значный HEX-код из лобби.",
-        color=0x3498DB,
+        title=embed_discord_link["title"],
+        description=embed_discord_link["description"],
+        color=embed_discord_link["color"],
     )
 
     pinned = []
@@ -242,4 +245,3 @@ async def discord_auth_update():
     else:
         new_message = await channel.send(embed=embed, view=RegisterButton())
         await new_message.pin()
-
