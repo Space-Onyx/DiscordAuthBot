@@ -1,5 +1,5 @@
 ﻿import asyncpg
-﻿import asyncio
+import asyncio
 import re
 from dataConfig import (
     DATABASE_SERVERS,
