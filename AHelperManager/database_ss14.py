@@ -509,9 +509,6 @@ class DatabaseManagerSS14:
         if not LINK_CODE_REGEX.fullmatch(code):
             return False, "Неверный формат кода. Ожидается 9 HEX-символов."
 
-        if await self.is_linked(discord_id, db_name):
-            return False, "Аккаунт уже привязан."
-
         target_dbs = self._linked_lookup_order(db_name)
         if not target_dbs:
             return False, "Нет настроенных БД для привязки."
@@ -601,6 +598,7 @@ class DatabaseManagerSS14:
         if not target_dbs:
             return False, "Нет настроенных БД для привязки."
         inserted_dbs: list[str] = []
+        already_linked_dbs: list[str] = []
 
         for current_db in target_dbs:
             ok, inserted, message = await self._insert_link_in_db(guid, discord_id, current_db)
@@ -619,8 +617,17 @@ class DatabaseManagerSS14:
 
             if inserted:
                 inserted_dbs.append(current_db)
+            elif message == "already_linked":
+                already_linked_dbs.append(current_db)
 
-        return True, f"Аккаунт привязан."
+        if not inserted_dbs and len(already_linked_dbs) == len(target_dbs):
+            await inter.send("❌ Аккаунт уже привязан.", ephemeral=True)
+            await _safe_send_tech_log(
+                f"⚠️ Пользователь {inter.author.name} ({discord_id}) пытался повторно привязать аккаунт."
+            )
+            return
+
+        return True, "Аккаунт привязан."
 
     async def unlink_user(self, discord_id: str, db_name: str = 'astra') -> tuple[bool, str]:
         target_dbs = self._linked_lookup_order(db_name)

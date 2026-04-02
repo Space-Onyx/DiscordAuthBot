@@ -189,13 +189,6 @@ class NicknameModal(disnake.ui.Modal):
             await _safe_send_tech_log(f"⚠️ Пользователь {inter.author.name} ({discord_id}) ввел пустой код.")
             return
 
-        if await ss14_db.is_linked(discord_id):
-            await inter.send("❌ Аккаунт уже привязан.", ephemeral=True)
-            await _safe_send_tech_log(
-                f"⚠️ Пользователь {inter.author.name} ({discord_id}) пытался повторно привязать аккаунт."
-            )
-            return
-
         success, message = await ss14_db.link_user_by_code(link_code, discord_id)
         await inter.send(message, ephemeral=True)
 
