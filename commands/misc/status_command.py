@@ -34,7 +34,12 @@ async def status_command(ctx, server: str = DEFAULT_SERVER_NAME):
                     status_text = "Ожидание"
                 else:
                     status_text = "Неизвестно"
-                embed = Embed(title=embed_status["title"], color=embed_status["color"])
+                title_value = embed_status["title"]
+                try:
+                    title_value = eval(title_value)
+                except Exception:
+                    title_value = str(title_value)
+                embed = Embed(title=title_value, color=embed_status["color"])
                 if "description" in embed_status:
                     embed.description = eval(embed_status["description"])
                 for field in embed_status["fields"]:
