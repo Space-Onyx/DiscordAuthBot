@@ -20,9 +20,6 @@ async def servers_command(ctx):
         value = (
             f"Адрес: `{server['address']}`\n"
             f"Status порт: `{server['status_port']}`\n"
-            f"Admin API порт: `{server['admin_api_port']}`\n"
-            f"POST порт: `{server['post_port']}`\n"
-            f"БД настроена: `{db_status}`"
         )
         embed.add_field(name=name.upper(), value=value, inline=False)
 
