@@ -169,30 +169,58 @@ class DatabaseManagerSS14:
         finally:
             await conn.close()
 
+    async def _table_exists(self, conn: asyncpg.Connection, table_name: str) -> bool:
+        full_name = table_name if "." in table_name else f"public.{table_name}"
+        result = await conn.fetchval("SELECT to_regclass($1)", full_name)
+        return result is not None
+
     async def search_ban_player(self, username: str, db_name: str = 'astra'):
         """
         Получает историю банов игрока по нику.
         """
         conn = await self.get_connection(db_name)
         try:
-            result = await conn.fetch("""
-                SELECT 
-                    sb.server_ban_id, 
-                    sb.ban_time, 
-                    sb.expiration_time, 
-                    sb.reason, 
-                    COALESCE(p.last_seen_user_name, 'Неизвестно') AS admin_nickname,
-                    ub.unban_time,
-                    COALESCE(p2.last_seen_user_name, 'Неизвестно') AS unban_admin_nickname
-                FROM server_ban sb
-                LEFT JOIN player p ON sb.banning_admin = p.user_id
-                LEFT JOIN server_unban ub ON sb.server_ban_id = ub.ban_id
-                LEFT JOIN player p2 ON ub.unbanning_admin = p2.user_id
-                WHERE sb.player_user_id = (
-                    SELECT user_id FROM player WHERE last_seen_user_name = $1
-                )
-                ORDER BY sb.server_ban_id ASC
-            """, username)
+            has_server_ban = await self._table_exists(conn, "server_ban")
+            if has_server_ban:
+                result = await conn.fetch("""
+                    SELECT
+                        sb.server_ban_id,
+                        sb.ban_time,
+                        sb.expiration_time,
+                        sb.reason,
+                        COALESCE(p.last_seen_user_name, 'Неизвестно') AS admin_nickname,
+                        ub.unban_time,
+                        COALESCE(p2.last_seen_user_name, 'Неизвестно') AS unban_admin_nickname
+                    FROM server_ban sb
+                    LEFT JOIN player p ON sb.banning_admin = p.user_id
+                    LEFT JOIN server_unban ub ON sb.server_ban_id = ub.ban_id
+                    LEFT JOIN player p2 ON ub.unbanning_admin = p2.user_id
+                    WHERE sb.player_user_id = (
+                        SELECT user_id FROM player WHERE last_seen_user_name = $1
+                    )
+                    ORDER BY sb.server_ban_id ASC
+                """, username)
+            else:
+                result = await conn.fetch("""
+                    SELECT
+                        b.ban_id,
+                        b.ban_time,
+                        b.expiration_time,
+                        b.reason,
+                        COALESCE(p.last_seen_user_name, 'Неизвестно') AS admin_nickname,
+                        ub.unban_time,
+                        COALESCE(p2.last_seen_user_name, 'Неизвестно') AS unban_admin_nickname
+                    FROM ban b
+                    INNER JOIN ban_player bp ON bp.ban_id = b.ban_id
+                    LEFT JOIN player p ON b.banning_admin = p.user_id
+                    LEFT JOIN unban ub ON b.ban_id = ub.ban_id
+                    LEFT JOIN player p2 ON ub.unbanning_admin = p2.user_id
+                    WHERE b.type = 0
+                      AND bp.user_id = (
+                          SELECT user_id FROM player WHERE last_seen_user_name = $1
+                      )
+                    ORDER BY b.ban_id ASC
+                """, username)
             return result
         except Exception as e:
             print(f"Ошибка БД: {e}")
@@ -237,11 +265,20 @@ class DatabaseManagerSS14:
         conn = await self.get_connection(db_name)
         try:
             async with conn.transaction():
-                exists = await conn.fetchval("SELECT 1 FROM server_ban WHERE server_ban_id = $1", ban_id)
+                has_server_ban = await self._table_exists(conn, "server_ban")
+                if has_server_ban:
+                    exists = await conn.fetchval("SELECT 1 FROM server_ban WHERE server_ban_id = $1", ban_id)
+                else:
+                    exists = await conn.fetchval("SELECT 1 FROM ban WHERE ban_id = $1 AND type = 0", ban_id)
+
                 if not exists:
                     return False, f"❌ Бан {ban_id} не существует."
 
-                already_unbanned = await conn.fetchval("SELECT 1 FROM server_unban WHERE ban_id = $1", ban_id)
+                if has_server_ban:
+                    already_unbanned = await conn.fetchval("SELECT 1 FROM server_unban WHERE ban_id = $1", ban_id)
+                else:
+                    already_unbanned = await conn.fetchval("SELECT 1 FROM unban WHERE ban_id = $1", ban_id)
+
                 if already_unbanned:
                     return False, f"⚠️ Бан {ban_id} уже снят."
 
@@ -249,10 +286,16 @@ class DatabaseManagerSS14:
                 if not admin_name:
                     return False, f"❌ При попытке найти имя админа в БД произошла ошибка: Админ с GUID {admin_guid} не найден."
 
-                await conn.execute("""
-                    INSERT INTO server_unban (ban_id, unbanning_admin, unban_time)
-                    VALUES ($1, $2, $3::timestamptz)
-                """, ban_id, admin_guid, unban_time)
+                if has_server_ban:
+                    await conn.execute("""
+                        INSERT INTO server_unban (ban_id, unbanning_admin, unban_time)
+                        VALUES ($1, $2, $3::timestamptz)
+                    """, ban_id, admin_guid, unban_time)
+                else:
+                    await conn.execute("""
+                        INSERT INTO unban (ban_id, unbanning_admin, unban_time)
+                        VALUES ($1, $2, $3::timestamptz)
+                    """, ban_id, admin_guid, unban_time)
 
                 return True, f"✅ Бан {ban_id} снят админом {admin_name}."
         except Exception as e:
