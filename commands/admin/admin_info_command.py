@@ -3,7 +3,7 @@ from disnake import Embed
 from disnake.ext.commands import has_any_role
 
 from bot_init import bot
-from dataConfig import DEFAULT_SERVER_NAME, ROLE_ACCESS_ADMIN, build_admin_headers, build_admin_url
+from dataConfig import DEFAULT_SERVER_NAME, ROLE_ACCESS_MODERATORS, ROLE_ACCESS_EVENTOLOGY, build_admin_headers, build_admin_url
 from server_utils import resolve_server_for_command
 from template_embed import embed_admin_info
 
@@ -31,7 +31,7 @@ def add_chunked_fields(embed, name, value, max_length=1024, inline=False):
         embed.add_field(name=field_name, value=value_chunk, inline=inline)
 
 
-@has_any_role(*ROLE_ACCESS_ADMIN)
+@has_any_role(*ROLE_ACCESS_MODERATORS, *ROLE_ACCESS_EVENTOLOGY)
 @bot.command(name="admin_info")
 async def admin_info_command(ctx, server: str = DEFAULT_SERVER_NAME):
     server_name, error = resolve_server_for_command(server)

@@ -2,11 +2,11 @@
 from disnake.ext.commands import has_any_role
 
 from bot_init import bot, ss14_db
-from dataConfig import DEFAULT_DB_SERVER, ROLE_ACCESS_ADMIN
+from dataConfig import DEFAULT_DB_SERVER, ROLE_ACCESS_MODERATORS, ROLE_ACCESS_EVENTOLOGY
 from server_utils import resolve_server_for_command
 
 
-@has_any_role(*ROLE_ACCESS_ADMIN)
+@has_any_role(*ROLE_ACCESS_MODERATORS, *ROLE_ACCESS_EVENTOLOGY)
 @bot.command(name="banlist")
 async def banlist_command(ctx, nickname: str, server: str = DEFAULT_DB_SERVER):
     server_name, error = resolve_server_for_command(server, db_required=True)

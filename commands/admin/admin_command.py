@@ -2,10 +2,10 @@
 from disnake.ext.commands import has_any_role
 
 from bot_init import bot, ss14_db
-from dataConfig import ROLE_ACCESS_ADMIN, get_db_server_names
+from dataConfig import ROLE_ACCESS_MODERATORS, ROLE_ACCESS_EVENTOLOGY, get_db_server_names
 
 
-@has_any_role(*ROLE_ACCESS_ADMIN)
+@has_any_role(*ROLE_ACCESS_MODERATORS, *ROLE_ACCESS_EVENTOLOGY)
 @bot.command(name="admin")
 async def admin_command(ctx, nickname: str):
     db_servers = get_db_server_names()

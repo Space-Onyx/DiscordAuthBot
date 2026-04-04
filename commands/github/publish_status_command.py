@@ -4,9 +4,9 @@ from bot_init import bot
 from disnake.ext.commands import has_any_role
 from disnake import Embed
 from template_embed import embed_publish_status
-from dataConfig import ROLE_ACCESS_MAINTAINER, USER_KEY_GITHUB
+from dataConfig import ROLE_ACCESS_DEVELOPERS, USER_KEY_GITHUB
 
-@has_any_role(*ROLE_ACCESS_MAINTAINER)
+@has_any_role(*ROLE_ACCESS_DEVELOPERS)
 @bot.command(name="publish_status")
 async def publish_status_command(ctx):
     url = "https://api.github.com/repos/AdventureTimeSS14/space_station_ADT/actions/workflows/publish-public.yml/runs"
