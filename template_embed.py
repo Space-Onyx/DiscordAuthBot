@@ -125,7 +125,7 @@ embed_admin_help = {
     "fields": [
         {"name": "Управление правами", "value": '&admin <nickname> — Проверка прав админа.\n&list_permission <server> — Выводит список прав сервера (по умолчанию БД-сервер по умолчанию).\n&add_permission <username> "<title>" "<permission>" <server> — Добавить права на выбранном сервере.\n&del_permission <username> <server> — Удалить права на выбранном сервере.\n&tweak_permission <username> "<title>" "<permission>" <server> — Изменить права на выбранном сервере.', "inline": False},
         {"name": "Информация о игроке", "value": '&logs <username> <round> <server> — Ищет админ-логи за указанный раунд.\n&check_nick <nickname> <server> — Проверка на мультиаккаунт.\n&get_ckey <Discord id> — Получить ckey по ID дискорда.\n&notelist <nickname> <server> — Заметки игрока.\n&banlist <nickname> <server> — Банлист игрока.', "inline": False},
-        {"name": "Баны и модерация", "value": '&ban <nickname> "<reason>" <time> в минутах — Выдает бан игроку.\n&kick <nickname> "<reason>" — Кик.\n&pardon <ban_id> — Разбанивает игрока.', "inline": False},
+        {"name": "Баны и модерация", "value": '&ban <nickname> <reason...> <time_minutes> [server] — Выдает бан игроку.\n&kick <nickname> <reason...> [server] — Кик.\n&pardon <ban_id> [server] — Разбанивает игрока.\nПоддерживается явный сервер: --server <name> | -s <name> | server=<name>.', "inline": False},
         {"name": "Сервер", "value": '&servers — Список серверов, доступных боту.\n&status <server> — Информация о сервере.\n&admin_info <server> — Подробная информация о сервере.\n&bunker <on/off> <server> — Включает/выключает бункер.', "inline": False},
     ]
 }

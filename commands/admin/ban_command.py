@@ -1,17 +1,39 @@
-﻿import aiohttp
+import aiohttp
 from disnake.ext.commands import has_any_role
 
 from bot_init import bot, ss14_db
-from dataConfig import DEFAULT_SERVER_NAME, ROLE_ACCESS_MODERATORS, build_admin_headers, build_admin_url
-from server_utils import resolve_server_for_command
+from dataConfig import ROLE_ACCESS_MODERATORS, build_admin_headers, build_admin_url
+from server_utils import parse_server_from_tokens
 
 
 @has_any_role(*ROLE_ACCESS_MODERATORS)
 @bot.command(name="ban")
-async def ban_command(ctx, nickname: str, reason: str, time: str, server: str = DEFAULT_SERVER_NAME):
-    server_name, error = resolve_server_for_command(server)
+async def ban_command(ctx, nickname: str, *args: str):
+    parsed_args, server_name, error = parse_server_from_tokens(
+        args,
+        db_required=False,
+        trailing_server_min_tokens=3,
+    )
     if error:
         await ctx.send(error)
+        return
+
+    if len(parsed_args) < 2:
+        await ctx.send(
+            "Использование: &ban <nickname> <reason...> <time_minutes> [server]\n"
+            "Также поддерживается: --server <name> | -s <name> | server=<name>"
+        )
+        return
+
+    reason = " ".join(parsed_args[:-1]).strip()
+    time = parsed_args[-1].strip()
+
+    if not reason:
+        await ctx.send("Ошибка: причина бана не может быть пустой.")
+        return
+
+    if not time.isdigit():
+        await ctx.send("Ошибка: время бана должно быть числом в минутах.")
         return
 
     discord_id = str(ctx.author.id)
@@ -29,10 +51,6 @@ async def ban_command(ctx, nickname: str, reason: str, time: str, server: str = 
     player_guid = await ss14_db.get_player_guid(nickname, server_name)
     if not player_guid:
         await ctx.send("❌ Игрок не найден в БД выбранного сервера.")
-        return
-
-    if not str(time).strip():
-        await ctx.send("Ошибка: время бана не может быть пустым.")
         return
 
     url = build_admin_url("/admin/actions/server_ban", server_name)

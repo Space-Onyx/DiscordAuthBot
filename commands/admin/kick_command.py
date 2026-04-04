@@ -1,17 +1,29 @@
-﻿import aiohttp
+import aiohttp
 from disnake.ext.commands import has_any_role
 
 from bot_init import bot, ss14_db
-from dataConfig import DEFAULT_SERVER_NAME, ROLE_ACCESS_MODERATORS, build_admin_headers, build_admin_url
-from server_utils import resolve_server_for_command
+from dataConfig import ROLE_ACCESS_MODERATORS, build_admin_headers, build_admin_url
+from server_utils import parse_server_from_tokens
 
 
 @has_any_role(*ROLE_ACCESS_MODERATORS)
 @bot.command(name="kick")
-async def kick_command(ctx, nickname: str, reason: str, server: str = DEFAULT_SERVER_NAME):
-    server_name, error = resolve_server_for_command(server)
+async def kick_command(ctx, nickname: str, *args: str):
+    parsed_args, server_name, error = parse_server_from_tokens(
+        args,
+        db_required=False,
+        trailing_server_min_tokens=2,
+    )
     if error:
         await ctx.send(error)
+        return
+
+    reason = " ".join(parsed_args).strip()
+    if not reason:
+        await ctx.send(
+            "Использование: &kick <nickname> <reason...> [server]\n"
+            "Также поддерживается: --server <name> | -s <name> | server=<name>"
+        )
         return
 
     discord_id = str(ctx.author.id)
