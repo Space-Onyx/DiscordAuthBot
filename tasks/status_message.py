@@ -1,9 +1,18 @@
 ﻿import aiohttp
+import disnake
 from disnake.ext import tasks
 
 from bot_init import bot
 from dataConfig import build_status_url, get_status_message_targets, resolve_server_name
 from status_utils import build_status_embed, compute_round_length_text, compute_status_text
+
+
+async def _get_pinned_messages(channel):
+    try:
+        return [msg async for msg in channel.pins()]
+    except disnake.HTTPException as e:
+        print(f"[StatusMessage] Failed to fetch pins for channel {channel.id}: {e}")
+        return None
 
 
 @tasks.loop(minutes=2)
@@ -44,9 +53,9 @@ async def status_update():
                     embed.title = "Ошибка"
                     embed.description = str(e)
 
-            pinned = []
-            async for msg in channel.pins():
-                pinned.append(msg)
+            pinned = await _get_pinned_messages(channel)
+            if pinned is None:
+                continue
 
             footer_text = f"Сервер: {resolved_server or 'не задан'}"
             old_message = next(
@@ -60,8 +69,11 @@ async def status_update():
                 None,
             )
 
-            if old_message:
-                await old_message.edit(embed=embed)
-            else:
-                new_message = await channel.send(embed=embed)
-                await new_message.pin()
+            try:
+                if old_message:
+                    await old_message.edit(embed=embed)
+                else:
+                    new_message = await channel.send(embed=embed)
+                    await new_message.pin()
+            except disnake.HTTPException as e:
+                print(f"[StatusMessage] Failed to update status message in channel {channel.id}: {e}")

@@ -32,6 +32,14 @@ async def _safe_send_tech_log(message: str):
         return
 
 
+async def _get_pinned_messages(channel):
+    try:
+        return [msg async for msg in channel.pins()]
+    except disnake.HTTPException as e:
+        print(f"[DiscordAuth] Failed to fetch pins for channel {channel.id}: {e}")
+        return None
+
+
 async def _get_member(guild: disnake.Guild, member_id: int):
     member = guild.get_member(member_id)
     if member is not None:
@@ -235,14 +243,17 @@ async def discord_auth_update():
         color=embed_discord_link["color"],
     )
 
-    pinned = []
-    async for msg in channel.pins():
-        pinned.append(msg)
+    pinned = await _get_pinned_messages(channel)
+    if pinned is None:
+        return
 
     old_message = next((m for m in pinned if m.author == channel.guild.me), None)
 
-    if old_message:
-        await old_message.edit(embed=embed, view=RegisterButton())
-    else:
-        new_message = await channel.send(embed=embed, view=RegisterButton())
-        await new_message.pin()
+    try:
+        if old_message:
+            await old_message.edit(embed=embed, view=RegisterButton())
+        else:
+            new_message = await channel.send(embed=embed, view=RegisterButton())
+            await new_message.pin()
+    except disnake.HTTPException as e:
+        print(f"[DiscordAuth] Failed to update auth message in channel {channel.id}: {e}")

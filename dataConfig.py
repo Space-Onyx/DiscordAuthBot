@@ -127,7 +127,7 @@ def _normalize_server_name(value: str | None) -> str:
 # Токен Discord-бота.
 DISCORD_KEY = get_env("DISCORD_KEY")
 # GitHub token для git-команд бота.
-USER_KEY_GITHUB = get_env("USER_KEY_GITHUB")
+USER_KEY_GITHUB = get_env_optional("USER_KEY_GITHUB")
 
 POST_USER_AGENT = get_env_optional("POST_USER_AGENT") or "DiscordAuthBot/1.0"
 
