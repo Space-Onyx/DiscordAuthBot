@@ -187,7 +187,7 @@ class NicknameModal(disnake.ui.Modal):
         components = [
             disnake.ui.TextInput(
                 label="Введите код привязки",
-                placeholder="9-значный HEX-код из лобби SS14",
+                placeholder="9-значный код из лобби SS14",
                 custom_id="link_code",
                 style=disnake.TextInputStyle.short,
                 required=True,
