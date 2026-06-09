@@ -120,6 +120,18 @@ def get_env_bool(key: str, default: bool) -> bool:
     return normalized in ("1", "true", "yes", "on")
 
 
+def get_env_list(key: str) -> list[str]:
+    value = os.getenv(key)
+    if value in (None, ""):
+        return []
+
+    return [
+        item.strip()
+        for item in value.replace(";", ",").split(",")
+        if item.strip()
+    ]
+
+
 def _normalize_server_name(value: str | None) -> str:
     return (value or "").strip().lower()
 
@@ -156,6 +168,12 @@ DATA_ADMIN = {
 
 LOG_CHANNEL_ID = get_env("LOG_CHANNEL_ID")
 MY_DS_ID = get_env("MY_DS_ID")
+
+# Ckeys whose IP/HWID matches should be hidden from &check_nick output.
+CHECK_NICK_ACCOUNT_WHITELIST = {
+    ckey.casefold()
+    for ckey in get_env_list("CHECK_NICK_ACCOUNT_WHITELIST")
+}
 
 
 def _build_server(
