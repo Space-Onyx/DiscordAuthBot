@@ -20,15 +20,21 @@ def _resolve_linked_role_id() -> int | None:
 
 
 async def _safe_send_tech_log(message: str):
+    if CHANNEL_LOG_AUTH_DISCORD is None:
+        print("[DiscordAuth] CHANNEL_LOG_AUTH_DISCORD is not configured.")
+        return
+
     channel = bot.get_channel(CHANNEL_LOG_AUTH_DISCORD)
     if channel is None:
         try:
             channel = await bot.fetch_channel(CHANNEL_LOG_AUTH_DISCORD)
-        except disnake.HTTPException:
+        except disnake.HTTPException as e:
+            print(f"[DiscordAuth] Failed to fetch log channel {CHANNEL_LOG_AUTH_DISCORD}: {e}")
             return
     try:
         await channel.send(message)
-    except disnake.HTTPException:
+    except disnake.HTTPException as e:
+        print(f"[DiscordAuth] Failed to send log message to channel {CHANNEL_LOG_AUTH_DISCORD}: {e}")
         return
 
 
@@ -233,8 +239,20 @@ class RegisterButton(disnake.ui.View):
 
 @tasks.loop(hours=12)
 async def discord_auth_update():
+    if CHANNEL_AUTH_DISCORD is None:
+        print("[DiscordAuth] CHANNEL_AUTH_DISCORD is not configured.")
+        return
+
     channel = bot.get_channel(CHANNEL_AUTH_DISCORD)
-    if not channel:
+    if channel is None:
+        try:
+            channel = await bot.fetch_channel(CHANNEL_AUTH_DISCORD)
+        except disnake.HTTPException as e:
+            print(f"[DiscordAuth] Failed to fetch auth channel {CHANNEL_AUTH_DISCORD}: {e}")
+            return
+
+    if not isinstance(channel, disnake.TextChannel):
+        print(f"[DiscordAuth] Channel {CHANNEL_AUTH_DISCORD} is not a text channel.")
         return
 
     embed = disnake.Embed(

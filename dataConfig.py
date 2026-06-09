@@ -111,6 +111,18 @@ def get_env_int(key: str, default: int) -> int:
         return default
 
 
+def get_required_env_int(key: str) -> int | None:
+    value = get_env(key)
+    if value in (None, ""):
+        return None
+
+    try:
+        return int(value)
+    except ValueError:
+        print(f"Некорректное число в {key}: {value}.")
+        return None
+
+
 def get_env_bool(key: str, default: bool) -> bool:
     value = os.getenv(key)
     if value in (None, ""):
@@ -144,8 +156,8 @@ USER_KEY_GITHUB = get_env_optional("USER_KEY_GITHUB")
 POST_USER_AGENT = get_env_optional("POST_USER_AGENT") or "DiscordAuthBot/1.0"
 
 # Discord-каналы
-CHANNEL_AUTH_DISCORD = get_env("CHANNEL_AUTH_DISCORD")
-CHANNEL_LOG_AUTH_DISCORD = get_env("CHANNEL_LOG_AUTH_DISCORD")
+CHANNEL_AUTH_DISCORD = get_required_env_int("CHANNEL_AUTH_DISCORD")
+CHANNEL_LOG_AUTH_DISCORD = get_required_env_int("CHANNEL_LOG_AUTH_DISCORD")
 
 # API для запросов от SS14 (глобальная отвязка из игры через бота).
 BOT_API_HOST = os.getenv("BOT_API_HOST", "127.0.0.1")
@@ -166,7 +178,7 @@ DATA_ADMIN = {
     "Name": str(ADMIN_NAME),
 }
 
-LOG_CHANNEL_ID = get_env("LOG_CHANNEL_ID")
+LOG_CHANNEL_ID = get_required_env_int("LOG_CHANNEL_ID")
 MY_DS_ID = get_env("MY_DS_ID")
 
 # Ckeys whose IP/HWID matches should be hidden from &check_nick output.
