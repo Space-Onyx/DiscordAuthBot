@@ -61,14 +61,16 @@ async def check_nick_command(ctx, nickname: str, server: str = DEFAULT_DB_SERVER
         discord_message = "Discord не привязан."
 
     related_accounts_str = "Совпадение по аккаунтам:\n"
-    show_related_accounts = last_seen_user_name.casefold() not in CHECK_NICK_ACCOUNT_WHITELIST
-    if related_accounts and show_related_accounts:
-        for acc in related_accounts:
+
+    filtered_related_accounts = [
+        acc for acc in related_accounts 
+        if acc[0].casefold() not in CHECK_NICK_ACCOUNT_WHITELIST 
+        and acc[0].casefold() != last_seen_user_name.casefold()
+    ]
+
+    if filtered_related_accounts:
+        for acc in filtered_related_accounts:
             related_user_name, related_address, related_hwid, related_last_seen_time = acc
-            if related_user_name == last_seen_user_name:
-                continue
-            if related_user_name.casefold() in CHECK_NICK_ACCOUNT_WHITELIST:
-                continue
 
             related_last_seen_time_str = (
                 related_last_seen_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -82,9 +84,6 @@ async def check_nick_command(ctx, nickname: str, server: str = DEFAULT_DB_SERVER
                 related_accounts_str += f"{related_user_name} [HWID] | Последний заход: {related_last_seen_time_str}\n"
             elif related_hwid == last_seen_hwid and related_address == last_seen_address:
                 related_accounts_str += f"{related_user_name} [IP, HWID] | Последний заход: {related_last_seen_time_str}\n"
-
-        if related_accounts_str == "Совпадение по аккаунтам:\n":
-            related_accounts_str += "Не найдены"
     else:
         related_accounts_str += "Не найдены"
 
