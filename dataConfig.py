@@ -10,13 +10,28 @@ MAX_SERVERS = 5
 
 
 def _parse_role_list(key: str) -> list[int]:
-    value = os.getenv(key)
-    if not value:
-        return []
-    
+    """Reads role lists directly from .env file to support multi-line, commented format."""
     import re
-    # Find all sequences of digits, ignoring everything else
-    return [int(match) for match in re.findall(r'\d+', value)]
+    
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if not os.path.exists(env_path):
+        return []
+
+    with open(env_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    pattern = rf"{key}\s*=\s*\[(.*?)\]"
+    match = re.search(pattern, content, re.DOTALL)
+    
+    if not match:
+        value = os.getenv(key)
+        if not value:
+            return []
+        return [int(m) for m in re.findall(r'\d+', value)]
+        
+    block = match.group(1)
+    return [int(m) for m in re.findall(r'\d+', block)]
+
 
 
 PROJECT_ACCESS_ROLES = _parse_role_list("PROJECT_ACCESS_ROLES")
