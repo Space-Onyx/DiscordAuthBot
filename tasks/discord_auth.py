@@ -4,7 +4,7 @@ import disnake
 from disnake.ext import tasks
 
 from bot_init import bot, ss14_db
-from dataConfig import CHANNEL_AUTH_DISCORD, CHANNEL_LOG_AUTH_DISCORD, LINKED_ACCOUNT_ROLE_ID
+from dataConfig import CHANNEL_LOG_AUTH_DISCORD, LINKED_ACCOUNT_ROLE_ID, get_auth_channel_targets
 from template_embed import embed_discord_link
 
 
@@ -239,39 +239,41 @@ class RegisterButton(disnake.ui.View):
 
 @tasks.loop(hours=12)
 async def discord_auth_update():
-    if CHANNEL_AUTH_DISCORD is None:
-        print("[DiscordAuth] CHANNEL_AUTH_DISCORD is not configured.")
+    targets = get_auth_channel_targets()
+    if not targets:
+        print("[DiscordAuth] No auth channels configured.")
         return
 
-    channel = bot.get_channel(CHANNEL_AUTH_DISCORD)
-    if channel is None:
+    for server_name, channel_id in targets:
+        channel = bot.get_channel(channel_id)
+        if channel is None:
+            try:
+                channel = await bot.fetch_channel(channel_id)
+            except disnake.HTTPException as e:
+                print(f"[DiscordAuth] Failed to fetch auth channel {channel_id}: {e}")
+                continue
+
+        if not isinstance(channel, disnake.TextChannel):
+            print(f"[DiscordAuth] Channel {channel_id} is not a text channel.")
+            continue
+
+        embed = disnake.Embed(
+            title=embed_discord_link["title"],
+            description=embed_discord_link["description"],
+            color=embed_discord_link["color"],
+        )
+
+        pinned = await _get_pinned_messages(channel)
+        if pinned is None:
+            continue
+
+        old_message = next((m for m in pinned if m.author == channel.guild.me), None)
+
         try:
-            channel = await bot.fetch_channel(CHANNEL_AUTH_DISCORD)
+            if old_message:
+                await old_message.edit(embed=embed, view=RegisterButton())
+            else:
+                new_message = await channel.send(embed=embed, view=RegisterButton())
+                await new_message.pin()
         except disnake.HTTPException as e:
-            print(f"[DiscordAuth] Failed to fetch auth channel {CHANNEL_AUTH_DISCORD}: {e}")
-            return
-
-    if not isinstance(channel, disnake.TextChannel):
-        print(f"[DiscordAuth] Channel {CHANNEL_AUTH_DISCORD} is not a text channel.")
-        return
-
-    embed = disnake.Embed(
-        title=embed_discord_link["title"],
-        description=embed_discord_link["description"],
-        color=embed_discord_link["color"],
-    )
-
-    pinned = await _get_pinned_messages(channel)
-    if pinned is None:
-        return
-
-    old_message = next((m for m in pinned if m.author == channel.guild.me), None)
-
-    try:
-        if old_message:
-            await old_message.edit(embed=embed, view=RegisterButton())
-        else:
-            new_message = await channel.send(embed=embed, view=RegisterButton())
-            await new_message.pin()
-    except disnake.HTTPException as e:
-        print(f"[DiscordAuth] Failed to update auth message in channel {channel.id}: {e}")
+            print(f"[DiscordAuth] Failed to update auth message in channel {channel.id}: {e}")

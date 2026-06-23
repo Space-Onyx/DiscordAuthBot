@@ -9,79 +9,27 @@ load_dotenv()
 MAX_SERVERS = 5
 
 
-# Единый набор ролей доступа для текущей конфигурации проекта.
-PROJECT_ACCESS_ROLES = [
-    1474158624166383748, # Руководство проекта
-    1474158624136757530, # Глава разработки
-    1474158624136757529, # Администрация
-]
+def _parse_role_list(key: str) -> list[int]:
+    value = os.getenv(key)
+    if not value:
+        return []
+    return [
+        int(item.strip())
+        for item in value.replace(";", ",").split(",")
+        if item.strip().isdigit()
+    ]
 
-ROLE_ACCESS_HEADS = [
-    1474158624166383748, # Руководство проекта
-    1474158624136757530, # Глава разработки
-    1474158624136757529, # Администрация
-    1474158624136757523, # Куратор модерации
-    1474158624136757522, # Куратор ивентологии
-    1474158624136757521, # Куратор караула
-]
-ROLE_ACCESS_DEVELOPERS = [
-    1474158624166383748, # Руководство проекта
-    1474158624136757530, # Глава разработки
-    1474158624136757529, # Администрация
-]
-ROLE_ACCESS_MODERATORS = [
-    1474158624166383748, # Руководство проекта
-    1474158624136757530, # Глава разработки
-    1474158624136757529, # Администрация
-    1474158624136757523, # Куратор модерации
-    1474158624136757522, # Куратор ивентологии
-    1474158624107532423, # Ведущий модератор
-    1474158624053137437, # Старший модератор
-    1474158624053137428, # Модератор
-]
-ROLE_ACCESS_EVENTOLOGY = [
-    1474158624166383748, # Руководство проекта
-    1474158624136757530, # Глава разработки
-    1474158624136757529, # Администрация
-    1474158624136757522, # Куратор ивентологии
-    1474158624107532422, # Ведущий ивентолог
-    1474158624053137436, # Старший ивентолог
-    1474158623981568260, # Ивентолог
-]
-GENERAL_ACCESS = [
-    1474158624166383748, # Руководство проекта
-    1474158624136757530, # Глава разработки
-    1474158624136757529, # Администрация
-]
-ROLE_ACCESS_DOWN_ADMIN = [
-    1474158624166383748, # Руководство проекта
-    1474158624136757530, # Глава разработки
-    1474158624136757529, # Администрация
-    1474158624136757523, # Куратор модерации
-    1474158624136757522, # Куратор ивентологии
 
-]
-ROLE_ACCESS_OBSERVER_ADMIN = [
-    1474158624166383748, # Руководство проекта
-    1474158624136757530, # Глава разработки
-    1474158624136757529, # Администрация
-    1474158624136757523, # Куратор модерации
-    1474158624136757522, # Куратор ивентологии
-]
-ROLE_ACCESS_DEPARTAMENT_OF_UNBAN_ADMIN = [
-    1474158624166383748, # Руководство проекта
-    1474158624136757530, # Глава разработки
-    1474158624136757529, # Администрация
-    1474158624136757523, # Куратор модерации
-    1474158624136757522, # Куратор ивентологии
-    1474158624107532423, # Ведущий модератор
-    1474158624053137437, # Старший модератор
-]
-ROLE_ACCESS_TOP_HEADS = [
-    1474158624166383748, # Руководство проекта
-    1474158624136757530, # Глава разработки
-    1474158624136757529, # Администрация
-]
+PROJECT_ACCESS_ROLES = _parse_role_list("PROJECT_ACCESS_ROLES")
+ROLE_ACCESS_HEADS = _parse_role_list("ROLE_ACCESS_HEADS")
+ROLE_ACCESS_DEVELOPERS = _parse_role_list("ROLE_ACCESS_DEVELOPERS")
+ROLE_ACCESS_MODERATORS = _parse_role_list("ROLE_ACCESS_MODERATORS")
+ROLE_ACCESS_EVENTOLOGY = _parse_role_list("ROLE_ACCESS_EVENTOLOGY")
+GENERAL_ACCESS = _parse_role_list("GENERAL_ACCESS")
+ROLE_ACCESS_DOWN_ADMIN = _parse_role_list("ROLE_ACCESS_DOWN_ADMIN")
+ROLE_ACCESS_OBSERVER_ADMIN = _parse_role_list("ROLE_ACCESS_OBSERVER_ADMIN")
+ROLE_ACCESS_DEPARTAMENT_OF_UNBAN_ADMIN = _parse_role_list("ROLE_ACCESS_DEPARTAMENT_OF_UNBAN_ADMIN")
+ROLE_ACCESS_TOP_HEADS = _parse_role_list("ROLE_ACCESS_TOP_HEADS")
 
 
 def get_env(key: str):
@@ -156,7 +104,7 @@ USER_KEY_GITHUB = get_env_optional("USER_KEY_GITHUB")
 POST_USER_AGENT = get_env_optional("POST_USER_AGENT") or "DiscordAuthBot/1.0"
 
 # Discord-каналы
-CHANNEL_AUTH_DISCORD = get_required_env_int("CHANNEL_AUTH_DISCORD")
+CHANNEL_AUTH_DISCORD = get_env_int("CHANNEL_AUTH_DISCORD", 0)
 CHANNEL_LOG_AUTH_DISCORD = get_required_env_int("CHANNEL_LOG_AUTH_DISCORD")
 
 # API для запросов от SS14 (глобальная отвязка из игры через бота).
@@ -204,6 +152,7 @@ def _build_server(
     db_port: str | None,
     db_user: str | None,
     db_pass: str | None,
+    channel_auth_discord: int | None = None,
 ) -> dict[str, Any]:
     return {
         "name": _normalize_server_name(name),
@@ -217,6 +166,7 @@ def _build_server(
         "post_username": (post_username or name).strip().upper(),
         "post_password": post_password,
         "post_authorization": post_authorization,
+        "channel_auth_discord": channel_auth_discord,
         "db": {
             "database": db_name,
             "host": db_host,
@@ -261,6 +211,9 @@ def _load_servers_from_slots() -> list[dict[str, Any]]:
         db_port = get_env_optional(f"{prefix}DB_PORT")
         db_user = get_env_optional(f"{prefix}DB_USER")
         db_pass = get_env_optional(f"{prefix}DB_PASS")
+        channel_auth_discord = get_env_int(f"{prefix}CHANNEL_AUTH_DISCORD", 0)
+        if channel_auth_discord == 0:
+            channel_auth_discord = None
 
         servers.append(
             _build_server(
@@ -279,6 +232,7 @@ def _load_servers_from_slots() -> list[dict[str, Any]]:
                 db_port=db_port,
                 db_user=db_user,
                 db_pass=db_pass,
+                channel_auth_discord=channel_auth_discord,
             )
         )
 
@@ -354,6 +308,17 @@ STATUS_MESSAGE_TARGETS = _parse_status_message_targets()
 
 def get_status_message_targets() -> list[tuple[str, int]]:
     return STATUS_MESSAGE_TARGETS.copy()
+
+
+def get_auth_channel_targets() -> list[tuple[str, int]]:
+    targets: list[tuple[str, int]] = []
+    for name in SERVER_ORDER:
+        server = SERVERS.get(name)
+        if server and server.get("channel_auth_discord"):
+            targets.append((name, server["channel_auth_discord"]))
+    if not targets and CHANNEL_AUTH_DISCORD:
+        targets.append(("default", CHANNEL_AUTH_DISCORD))
+    return targets
 
 
 def get_server_names() -> list[str]:
