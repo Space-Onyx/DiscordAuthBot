@@ -13,11 +13,10 @@ def _parse_role_list(key: str) -> list[int]:
     value = os.getenv(key)
     if not value:
         return []
-    return [
-        int(item.strip())
-        for item in value.replace(";", ",").split(",")
-        if item.strip().isdigit()
-    ]
+    
+    import re
+    # Find all sequences of digits, ignoring everything else
+    return [int(match) for match in re.findall(r'\d+', value)]
 
 
 PROJECT_ACCESS_ROLES = _parse_role_list("PROJECT_ACCESS_ROLES")
