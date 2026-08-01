@@ -8,7 +8,7 @@ from dataConfig import (
 )
 from datetime import datetime
 
-LINK_CODE_REGEX = re.compile(r"^[0-9A-F]{12}$")
+LINK_CODE_REGEX = re.compile(r"^[0-9a-f]{12}$")
 
 
 class _PoolConnWrapper:
@@ -451,7 +451,7 @@ class DatabaseManagerSS14:
     def _normalize_link_code(link_code: str | None) -> str:
         if link_code is None:
             return ""
-        return link_code.strip().upper()
+        return link_code.strip().lower()
 
     @staticmethod
     def _normalize_ckey(ckey: str | None) -> str:
