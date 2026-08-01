@@ -8,7 +8,7 @@ from dataConfig import (
 )
 from datetime import datetime
 
-LINK_CODE_REGEX = re.compile(r"^[0-9A-F]{9}$")
+LINK_CODE_REGEX = re.compile(r"^[0-9A-F]{12}$")
 
 
 class _PoolConnWrapper:
@@ -453,32 +453,41 @@ class DatabaseManagerSS14:
             return ""
         return link_code.strip().upper()
 
+    @staticmethod
+    def _normalize_ckey(ckey: str | None) -> str:
+        if ckey is None:
+            return ""
+        return ckey.strip().lower()
+
     async def _ensure_link_code_table(self, conn: asyncpg.Connection) -> None:
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS discord_link_code (
                 user_id TEXT PRIMARY KEY,
+                ckey TEXT NOT NULL,
                 code TEXT NOT NULL UNIQUE,
                 expires_at BIGINT NOT NULL
             )
         """)
 
-        schema_type = await conn.fetchval("""
-            SELECT data_type
+        columns = await conn.fetch("""
+            SELECT column_name, data_type
             FROM information_schema.columns
             WHERE table_name = 'discord_link_code'
-              AND column_name = 'expires_at'
-            LIMIT 1
         """)
+        column_types = {str(row["column_name"]): str(row["data_type"]) for row in columns}
 
-        if schema_type and "int" not in str(schema_type).lower():
+        if "expires_at" in column_types and "int" not in column_types["expires_at"].lower():
             await conn.execute("DROP TABLE IF EXISTS discord_link_code")
             await conn.execute("""
                 CREATE TABLE discord_link_code (
                     user_id TEXT PRIMARY KEY,
+                    ckey TEXT NOT NULL,
                     code TEXT NOT NULL UNIQUE,
                     expires_at BIGINT NOT NULL
                 )
             """)
+        elif "ckey" not in column_types:
+            await conn.execute("ALTER TABLE discord_link_code ADD COLUMN ckey TEXT NOT NULL DEFAULT ''")
 
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS ix_discord_link_code_expires_at
@@ -513,6 +522,7 @@ class DatabaseManagerSS14:
 
     async def _claim_link_code_in_db(
         self,
+        ckey: str,
         link_code: str,
         db_name: str
     ) -> tuple[bool, str | None, int | None, str]:
@@ -530,11 +540,12 @@ class DatabaseManagerSS14:
                 row = await conn.fetchrow(
                     """
                     DELETE FROM discord_link_code
-                    WHERE code = $1 AND expires_at > $2
+                    WHERE ckey = $1 AND code = $2 AND expires_at > $3
                     RETURNING user_id, expires_at
                     """,
+                    ckey,
                     link_code,
-                    now_unix
+                    now_unix,
                 )
 
                 if not row:
@@ -550,6 +561,7 @@ class DatabaseManagerSS14:
     async def _restore_link_code_in_db(
         self,
         user_id: str,
+        ckey: str,
         link_code: str,
         expires_at: int,
         db_name: str
@@ -564,12 +576,13 @@ class DatabaseManagerSS14:
                 await self._ensure_link_code_table(conn)
                 await conn.execute(
                     """
-                    INSERT INTO discord_link_code (user_id, code, expires_at)
-                    VALUES ($1, $2, $3)
+                    INSERT INTO discord_link_code (user_id, ckey, code, expires_at)
+                    VALUES ($1, $2, $3, $4)
                     ON CONFLICT (user_id)
-                    DO UPDATE SET code = EXCLUDED.code, expires_at = EXCLUDED.expires_at
+                    DO UPDATE SET ckey = EXCLUDED.ckey, code = EXCLUDED.code, expires_at = EXCLUDED.expires_at
                     """,
                     user_id,
+                    ckey,
                     link_code,
                     expires_at
                 )
@@ -600,10 +613,19 @@ class DatabaseManagerSS14:
 
         return True, "Код удален."
 
-    async def link_user_by_code(self, link_code: str, discord_id: str, db_name: str = 'astra') -> tuple[bool, str]:
+    async def link_user_by_code(
+        self,
+        ckey: str,
+        link_code: str,
+        discord_id: str,
+        db_name: str = 'astra'
+    ) -> tuple[bool, str]:
+        normalized_ckey = self._normalize_ckey(ckey)
         code = self._normalize_link_code(link_code)
+        if not normalized_ckey:
+            return False, "cKey не может быть пустым."
         if not LINK_CODE_REGEX.fullmatch(code):
-            return False, "Неверный формат кода. Ожидается 9 HEX-символов."
+            return False, "Неверный формат кода. Ожидается 12 HEX-символов."
 
         target_dbs = self._linked_lookup_order(db_name)
         if not target_dbs:
@@ -615,7 +637,11 @@ class DatabaseManagerSS14:
         errors: list[str] = []
 
         for current_db in target_dbs:
-            ok, claimed_guid, expires_at, message = await self._claim_link_code_in_db(code, current_db)
+            ok, claimed_guid, expires_at, message = await self._claim_link_code_in_db(
+                normalized_ckey,
+                code,
+                current_db
+            )
             if not ok:
                 errors.append(f"{current_db.upper()}: {message}")
                 continue
@@ -635,6 +661,7 @@ class DatabaseManagerSS14:
         if not success and source_db and code_expires_at is not None:
             restore_ok, restore_message = await self._restore_link_code_in_db(
                 guid,
+                normalized_ckey,
                 code,
                 code_expires_at,
                 source_db

@@ -186,8 +186,15 @@ class NicknameModal(disnake.ui.Modal):
     def __init__(self):
         components = [
             disnake.ui.TextInput(
+                label="Введите cKey",
+                placeholder="Ваш cKey в SS14",
+                custom_id="ckey",
+                style=disnake.TextInputStyle.short,
+                required=True,
+            ),
+            disnake.ui.TextInput(
                 label="Введите код привязки",
-                placeholder="9-значный код из лобби SS14",
+                placeholder="12-значный код",
                 custom_id="link_code",
                 style=disnake.TextInputStyle.short,
                 required=True,
@@ -197,15 +204,18 @@ class NicknameModal(disnake.ui.Modal):
 
     async def callback(self, inter: disnake.ModalInteraction):
         await inter.response.defer(ephemeral=True)
+        ckey = inter.text_values["ckey"].strip()
         link_code = inter.text_values["link_code"].strip()
         discord_id = str(inter.author.id)
 
-        if not link_code:
-            await inter.send("❌ Код не может быть пустым.", ephemeral=True)
-            await _safe_send_tech_log(f"⚠️ Пользователь {inter.author.name} ({discord_id}) ввел пустой код.")
+        if not ckey or not link_code:
+            await inter.send("❌ cKey и код не могут быть пустыми.", ephemeral=True)
+            await _safe_send_tech_log(
+                f"⚠️ Пользователь {inter.author.name} ({discord_id}) не заполнил cKey или код."
+            )
             return
 
-        success, message = await ss14_db.link_user_by_code(link_code, discord_id)
+        success, message = await ss14_db.link_user_by_code(ckey, link_code, discord_id)
         await inter.send(message, ephemeral=True)
 
         if success:
@@ -225,7 +235,7 @@ class NicknameModal(disnake.ui.Modal):
             return
 
         await _safe_send_tech_log(
-            f"⚠️ Ошибка привязки для {inter.author.name} ({discord_id}) по коду {link_code.upper()}: {message}."
+            f"⚠️ Ошибка привязки для {inter.author.name} ({discord_id}), cKey {ckey}: {message}."
         )
 
 class RegisterButton(disnake.ui.View):
