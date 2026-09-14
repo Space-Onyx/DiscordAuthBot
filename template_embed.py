@@ -150,3 +150,44 @@ embed_help = {
         {"name": "\nРепозиторий бота:", "value": '🔗 Гитхаб: https://github.com/Space-Onyx/DiscordAuthBot | Оригинальный автор: [Darkiich](https://github.com/Darkiich)', "inline": False}
     ]
 }
+
+# Уведомления о раундах из Round API сервера (Content.Server.Corvax.Api.Round).
+# Пинг роли отправляется отдельным content вне embed.
+embed_round = {
+    "lobby": {
+        "title": "Новый раунд начинается!",
+        "color": 0xF1C40F,
+    },
+    "started": {
+        "title": "Раунд начался",
+        "color": 0x00FF00,
+        "fields": [
+            {"name": "Раунд", "key": "round_id", "inline": True},
+            {"name": "Карта", "key": "map", "inline": True},
+            {"name": "Режим", "key": "preset", "inline": True},
+            {"name": "Онлайн", "key": "online", "inline": True},
+        ],
+    },
+    "ended": {
+        "title": "Раунд завершён",
+        "color": 0xE74C3C,
+        "fields": [
+            {"name": "Раунд", "key": "round_id", "inline": True},
+            {"name": "Длительность", "key": "duration", "inline": True},
+            {"name": "Онлайн", "key": "online", "inline": True},
+        ],
+    },
+}
+
+# Уведомления об ахелпах из AHelp API сервера (Content.Server.Corvax.Api.AHelp).
+# Пинг роли отправляется отдельным content вне embed только для новых обращений.
+embed_ahelp = {
+    "title": "Ахелп",
+    "color": 0x0099FF,
+}
+
+# Уведомления о банах из Ban API сервера (Content.Server._Onyx.Discord.Bans).
+# Всегда только embed, без пинга. Цвет приходит с сервера.
+embed_ban = {
+    "color": 0x8B0000,
+}

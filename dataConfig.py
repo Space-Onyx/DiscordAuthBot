@@ -110,6 +110,18 @@ def _normalize_server_name(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
+def _get_optional_env_int(key: str) -> int | None:
+    value = get_env_optional(key)
+    if value in (None, ""):
+        return None
+
+    try:
+        return int(value)
+    except ValueError:
+        print(f"Некорректное число в {key}: {value}. Пропущено.")
+        return None
+
+
 # Токен Discord-бота.
 DISCORD_KEY = get_env("DISCORD_KEY")
 # GitHub token для git-команд бота.
@@ -167,6 +179,12 @@ def _build_server(
     db_user: str | None,
     db_pass: str | None,
     channel_auth_discord: int | None = None,
+    round_channel: int | None = None,
+    ahelp_channel: int | None = None,
+    ban_channel: int | None = None,
+    round_ping_role: int | None = None,
+    ahelp_ping_role: int | None = None,
+    game_host_name: str | None = None,
 ) -> dict[str, Any]:
     return {
         "name": _normalize_server_name(name),
@@ -181,6 +199,12 @@ def _build_server(
         "post_password": post_password,
         "post_authorization": post_authorization,
         "channel_auth_discord": channel_auth_discord,
+        "round_channel": round_channel,
+        "ahelp_channel": ahelp_channel,
+        "ban_channel": ban_channel,
+        "round_ping_role": round_ping_role,
+        "ahelp_ping_role": ahelp_ping_role,
+        "game_host_name": (game_host_name or "").strip(),
         "db": {
             "database": db_name,
             "host": db_host,
@@ -229,6 +253,13 @@ def _load_servers_from_slots() -> list[dict[str, Any]]:
         if channel_auth_discord == 0:
             channel_auth_discord = None
 
+        round_channel = _get_optional_env_int(f"{prefix}ROUND_CHANNEL")
+        ahelp_channel = _get_optional_env_int(f"{prefix}AHELP_CHANNEL")
+        ban_channel = _get_optional_env_int(f"{prefix}BAN_CHANNEL")
+        round_ping_role = _get_optional_env_int(f"{prefix}ROUND_PING_ROLE")
+        ahelp_ping_role = _get_optional_env_int(f"{prefix}AHELP_PING_ROLE")
+        game_host_name = get_env_optional(f"{prefix}GAME_HOST_NAME")
+
         servers.append(
             _build_server(
                 name=name,
@@ -247,6 +278,12 @@ def _load_servers_from_slots() -> list[dict[str, Any]]:
                 db_user=db_user,
                 db_pass=db_pass,
                 channel_auth_discord=channel_auth_discord,
+                round_channel=round_channel,
+                ahelp_channel=ahelp_channel,
+                ban_channel=ban_channel,
+                round_ping_role=round_ping_role,
+                ahelp_ping_role=ahelp_ping_role,
+                game_host_name=game_host_name,
             )
         )
 
@@ -377,6 +414,48 @@ def get_db_server_config(server_name: str | None = None) -> dict[str, Any] | Non
     if not resolved:
         return None
     return DATABASE_SERVERS.get(resolved)
+
+
+def resolve_server_by_host_name(host_name: str | None) -> dict[str, Any] | None:
+    """Ищет конфиг сервера по GameHostName из push-событий SS14 (round/ahelp API)."""
+    normalized = (host_name or "").strip().lower()
+    if not normalized:
+        return None
+
+    for name in SERVER_ORDER:
+        server = SERVERS[name]
+        candidates = {
+            (server.get("game_host_name") or "").strip().lower(),
+            server.get("name", ""),
+            (server.get("display_name") or "").strip().lower(),
+            (server.get("post_instance") or "").strip().lower(),
+        }
+        candidates.discard("")
+        if normalized in candidates:
+            return server
+
+    return None
+
+
+def get_round_notify_target(host_name: str | None) -> tuple[dict[str, Any], int, int | None] | None:
+    server = resolve_server_by_host_name(host_name)
+    if not server or not server.get("round_channel"):
+        return None
+    return server, server["round_channel"], server.get("round_ping_role")
+
+
+def get_ahelp_notify_target(host_name: str | None) -> tuple[dict[str, Any], int, int | None] | None:
+    server = resolve_server_by_host_name(host_name)
+    if not server or not server.get("ahelp_channel"):
+        return None
+    return server, server["ahelp_channel"], server.get("ahelp_ping_role")
+
+
+def get_ban_notify_target(host_name: str | None) -> tuple[dict[str, Any], int] | None:
+    server = resolve_server_by_host_name(host_name)
+    if not server or not server.get("ban_channel"):
+        return None
+    return server, server["ban_channel"]
 
 
 def build_status_url(server_name: str | None = None) -> str | None:

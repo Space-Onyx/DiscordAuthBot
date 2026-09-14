@@ -4,8 +4,11 @@ import time
 from collections import deque
 from aiohttp import web
 
-from bot_init import ss14_db
-from dataConfig import BOT_API_HOST, BOT_API_PORT, BOT_API_TOKEN
+import disnake
+
+from bot_init import bot, ss14_db
+from dataConfig import BOT_API_HOST, BOT_API_PORT, BOT_API_TOKEN, get_ahelp_notify_target, get_ban_notify_target, get_round_notify_target
+from notifications_utils import build_ahelp_embed, build_ban_embed, build_role_ping_content, build_round_embed
 from tasks.discord_auth import set_linked_role_for_discord_id
 
 
@@ -109,6 +112,196 @@ async def _discord_unlink_handler(request: web.Request) -> web.Response:
         )
 
 
+# Состояние опубликованных ахелп-обращений: (server_name, conversation_id) -> message_id/transcript.
+_ahelp_messages: dict[tuple[str, str], dict] = {}
+
+_ROUND_EVENT_TYPES = ("lobby", "started", "ended")
+
+
+def _require_bot_token(request: web.Request) -> bool:
+    expected_token = (BOT_API_TOKEN or "").strip()
+    if not expected_token:
+        return False
+
+    request_token = _extract_token(request)
+    return bool(request_token) and hmac.compare_digest(request_token, expected_token)
+
+
+def _check_bot_api_access(request: web.Request) -> web.Response | None:
+    if not (BOT_API_TOKEN or "").strip():
+        return web.json_response({"ok": False, "message": "BOT_API_TOKEN не настроен."}, status=503)
+
+    if not _require_bot_token(request):
+        ip = request.remote or "unknown"
+        if not _check_rate_limit(_rate_limit_ip, ip):
+            _log_throttled("rate_limit_ip", f"[DiscordAuthApi] Rate limit exceeded for IP {ip}")
+        return web.json_response({"ok": False, "message": "Неверный токен авторизации."}, status=401)
+
+    ip = request.remote or "unknown"
+    if not _check_rate_limit(_rate_limit_ip, ip):
+        _log_throttled("rate_limit_ip", f"[DiscordAuthApi] Rate limit exceeded for IP {ip}")
+        return web.json_response({"ok": False, "message": "Слишком много запросов."}, status=429)
+
+    return None
+
+
+async def _resolve_notify_channel(channel_id: int):
+    channel = bot.get_channel(channel_id)
+    if channel is None:
+        channel = await bot.fetch_channel(channel_id)
+    return channel
+
+
+async def _round_event_handler(request: web.Request) -> web.Response:
+    denied = _check_bot_api_access(request)
+    if denied is not None:
+        return denied
+
+    async with _semaphore:
+        try:
+            payload = await request.json()
+        except Exception as e:
+            return web.json_response({"ok": False, "message": f"Некорректный JSON: {e}"}, status=400)
+
+        event_type = str(payload.get("type") or "")
+        if event_type not in _ROUND_EVENT_TYPES:
+            return web.json_response(
+                {"ok": False, "message": f"Неизвестный тип события: {event_type}."},
+                status=400,
+            )
+
+        target = get_round_notify_target(payload.get("serverName"))
+        if target is None:
+            return web.json_response(
+                {"ok": False, "message": "Сервер не распознан или ROUND_CHANNEL не настроен."},
+                status=404,
+            )
+
+        server, channel_id, ping_role = target
+
+        try:
+            channel = await _resolve_notify_channel(channel_id)
+        except Exception as e:
+            return web.json_response({"ok": False, "message": f"Канал недоступен: {e}"}, status=404)
+
+        embed = build_round_embed(payload, server.get("display_name") or server.get("name", "?"))
+        # Пинг роли всегда вне embed. Пингуем только о конце раунда, как раньше через вебхуки.
+        content = build_role_ping_content(ping_role) if event_type == "ended" else None
+
+        try:
+            await channel.send(content=content, embed=embed)
+        except Exception as e:
+            return web.json_response({"ok": False, "message": f"Не удалось отправить уведомление: {e}"}, status=502)
+
+        return web.json_response({"ok": True, "message": "ok"})
+
+
+async def _ahelp_event_handler(request: web.Request) -> web.Response:
+    denied = _check_bot_api_access(request)
+    if denied is not None:
+        return denied
+
+    async with _semaphore:
+        try:
+            payload = await request.json()
+        except Exception as e:
+            return web.json_response({"ok": False, "message": f"Некорректный JSON: {e}"}, status=400)
+
+        target = get_ahelp_notify_target(payload.get("serverName"))
+        if target is None:
+            return web.json_response(
+                {"ok": False, "message": "Сервер не распознан или AHELP_CHANNEL не настроен."},
+                status=404,
+            )
+
+        server, channel_id, ping_role = target
+
+        try:
+            channel = await _resolve_notify_channel(channel_id)
+        except Exception as e:
+            return web.json_response({"ok": False, "message": f"Канал недоступен: {e}"}, status=404)
+
+        server_label = server.get("display_name") or server.get("name", "?")
+        round_id = payload.get("roundId", "—")
+        run_level = payload.get("runLevel")
+        conversations = payload.get("conversations") or []
+        if not isinstance(conversations, list):
+            return web.json_response({"ok": False, "message": "Поле conversations должно быть списком."}, status=400)
+
+        created = 0
+        updated = 0
+        for conversation in conversations:
+            if not isinstance(conversation, dict):
+                continue
+            conversation_id = str(conversation.get("conversationId") or conversation.get("userId") or "")
+            if not conversation_id:
+                continue
+
+            key = (server.get("name", "?"), conversation_id)
+            transcript = conversation.get("transcript") or ""
+            state = _ahelp_messages.get(key)
+            embed = build_ahelp_embed(conversation, server_label, round_id, run_level)
+
+            try:
+                if state is None:
+                    # Новое обращение: пинг роли вне embed, сам текст только в embed.
+                    message = await channel.send(content=build_role_ping_content(ping_role), embed=embed)
+                    _ahelp_messages[key] = {"message_id": message.id, "transcript": transcript}
+                    created += 1
+                elif state.get("transcript") != transcript:
+                    try:
+                        message = await channel.fetch_message(state["message_id"])
+                        await message.edit(embed=embed)
+                    except disnake.HTTPException:
+                        message = await channel.send(embed=embed)
+                        state["message_id"] = message.id
+                    state["transcript"] = transcript
+                    updated += 1
+            except Exception as e:
+                return web.json_response({"ok": False, "message": f"Не удалось отправить уведомление: {e}"}, status=502)
+
+        return web.json_response({"ok": True, "message": "ok", "created": created, "updated": updated})
+
+
+async def _ban_event_handler(request: web.Request) -> web.Response:
+    denied = _check_bot_api_access(request)
+    if denied is not None:
+        return denied
+
+    async with _semaphore:
+        try:
+            payload = await request.json()
+        except Exception as e:
+            return web.json_response({"ok": False, "message": f"Некорректный JSON: {e}"}, status=400)
+
+        if str(payload.get("type") or "") != "ban":
+            return web.json_response({"ok": False, "message": "Неизвестный тип события."}, status=400)
+
+        target = get_ban_notify_target(payload.get("serverName"))
+        if target is None:
+            return web.json_response(
+                {"ok": False, "message": "Сервер не распознан или BAN_CHANNEL не настроен."},
+                status=404,
+            )
+
+        server, channel_id = target
+
+        try:
+            channel = await _resolve_notify_channel(channel_id)
+        except Exception as e:
+            return web.json_response({"ok": False, "message": f"Канал недоступен: {e}"}, status=404)
+
+        # Баны всегда только embed, без пинга.
+        embed = build_ban_embed(payload)
+
+        try:
+            await channel.send(embed=embed)
+        except Exception as e:
+            return web.json_response({"ok": False, "message": f"Не удалось отправить уведомление: {e}"}, status=502)
+
+        return web.json_response({"ok": True, "message": "ok"})
+
+
 async def ensure_bot_api_started() -> bool:
     global _api_runner, _api_site, _api_started
 
@@ -121,6 +314,9 @@ async def ensure_bot_api_started() -> bool:
 
     app = web.Application()
     app.router.add_post("/api/v1/discord/unlink", _discord_unlink_handler)
+    app.router.add_post("/api/v1/round/event", _round_event_handler)
+    app.router.add_post("/api/v1/ahelp/event", _ahelp_event_handler)
+    app.router.add_post("/api/v1/ban/event", _ban_event_handler)
 
     _api_runner = web.AppRunner(app)
     await _api_runner.setup()
