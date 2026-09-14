@@ -28,8 +28,8 @@ _semaphore = asyncio.Semaphore(_CONCURRENCY_LIMIT)
 
 def _extract_token(request: web.Request) -> str:
     auth = request.headers.get("Authorization", "").strip()
-    if auth.lower().startswith("bearer "):
-        return auth[7:].strip()
+    if " " in auth:
+        return auth.split(" ", 1)[1].strip()
     return auth
 
 
