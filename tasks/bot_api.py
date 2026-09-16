@@ -245,7 +245,11 @@ async def _ahelp_event_handler(request: web.Request) -> web.Response:
             try:
                 if state is None:
                     # Новое обращение: пинг роли вне embed, сам текст только в embed.
-                    message = await channel.send(content=build_role_ping_content(ping_role), embed=embed)
+                    ping_content = build_role_ping_content(ping_role)
+                    if ping_content is None:
+                        message = await channel.send(embed=embed)
+                    else:
+                        message = await channel.send(content=ping_content, embed=embed)
                     _ahelp_messages[key] = {"message_id": message.id, "transcript": transcript}
                     created += 1
                 elif state.get("transcript") != transcript:
