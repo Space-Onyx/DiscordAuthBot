@@ -1,14 +1,50 @@
-﻿import aiohttp
-import disnake
+﻿import json
+import os
 import time
+
+import aiohttp
+import disnake
 from disnake.ext import tasks
 
 from bot_init import bot
 from dataConfig import build_status_url, get_status_message_targets, resolve_server_name
 from status_utils import build_status_embed, compute_round_length_text, compute_status_text
+from template_embed import embed_status
+
+_STATE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "status_message_state.json")
+_STATUS_FOOTER_PREFIX = "Сервер: "
+_STATUS_FIELD_NAME = next(
+    (field["name"] for field in embed_status["fields"] if field.get("key") == "status"),
+    "Статус",
+)
+_SKIP = object()
 
 _status_message_ids: dict[int, int] = {}
 _status_lookup_error_last: dict[int, float] = {}
+
+
+def _load_state() -> dict[int, int]:
+    try:
+        with open(_STATE_PATH, "r", encoding="utf-8") as file:
+            raw = json.load(file)
+        return {int(channel_id): int(message_id) for channel_id, message_id in raw.items()}
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+def _save_state() -> None:
+    try:
+        with open(_STATE_PATH, "w", encoding="utf-8") as file:
+            json.dump(
+                {str(channel_id): message_id for channel_id, message_id in _status_message_ids.items()},
+                file,
+                indent=2,
+            )
+    except OSError as e:
+        print(f"[StatusMessage] Failed to persist state: {e}")
+
+
+_status_message_ids = _load_state()
 
 
 def _log_lookup_error_once(channel_id: int, text: str) -> None:
@@ -18,48 +54,50 @@ def _log_lookup_error_once(channel_id: int, text: str) -> None:
         print(text)
 
 
-def _is_status_message(message, footer_text: str, channel) -> bool:
-    return (
-        message.author == channel.guild.me
-        and message.embeds
-        and message.embeds[0].footer
-        and message.embeds[0].footer.text == footer_text
-    )
+def _is_status_message(message) -> bool:
+    if bot.user is None or message.author.id != bot.user.id or not message.embeds:
+        return False
+    embed = message.embeds[0]
+    footer = embed.footer
+    if not footer or not footer.text or not footer.text.startswith(_STATUS_FOOTER_PREFIX):
+        return False
+    return any(field.name == _STATUS_FIELD_NAME for field in embed.fields)
 
 
-async def _get_pinned_messages(channel):
+async def _resolve_status_message(channel, channel_id: int):
+    cached_id = _status_message_ids.get(channel_id)
+    if cached_id is not None:
+        try:
+            message = await channel.fetch_message(cached_id)
+            if _is_status_message(message):
+                return message
+        except disnake.NotFound:
+            pass
+        except disnake.HTTPException:
+            _log_lookup_error_once(channel_id, f"[StatusMessage] message lookup unavailable for channel {channel_id}, skipping update")
+            return _SKIP
+        _status_message_ids.pop(channel_id, None)
+        _save_state()
+
     try:
-        return [msg async for msg in channel.pins()]
+        pinned = [message async for message in channel.pins()]
     except disnake.HTTPException:
-        _log_lookup_error_once(channel.id, f"[StatusMessage] pins unavailable for channel {channel.id}, using history fallback")
+        _log_lookup_error_once(channel_id, f"[StatusMessage] pins unavailable for channel {channel_id}, skipping update")
+        return _SKIP
+
+    candidates = [message for message in pinned if _is_status_message(message)]
+    if not candidates:
         return None
 
-
-async def _find_status_message(channel, channel_id: int, footer_text: str):
-    cached = _status_message_ids.get(channel_id)
-    if cached is not None:
+    keep = min(candidates, key=lambda message: message.created_at)
+    for extra in candidates:
+        if extra.id == keep.id:
+            continue
         try:
-            message = await channel.fetch_message(cached)
-            if _is_status_message(message, footer_text, channel):
-                return message, True
+            await extra.delete()
         except disnake.HTTPException:
             pass
-        _status_message_ids.pop(channel_id, None)
-
-    pinned = await _get_pinned_messages(channel)
-    if pinned is not None:
-        for message in pinned:
-            if _is_status_message(message, footer_text, channel):
-                return message, True
-
-    try:
-        async for message in channel.history(limit=50):
-            if _is_status_message(message, footer_text, channel):
-                return message, True
-    except disnake.HTTPException:
-        _log_lookup_error_once(channel_id, f"[StatusMessage] history unavailable for channel {channel_id}, skipping update")
-        return None, False
-    return None, True
+    return keep
 
 
 @tasks.loop(minutes=2)
@@ -102,18 +140,20 @@ async def status_update():
                     embed.title = "Ошибка"
                     embed.description = str(e)
 
-            footer_text = (embed.footer.text if embed.footer else f"Сервер: {host_label}")
-            old_message, looked_up = await _find_status_message(channel, channel_id, footer_text)
-            if old_message is None and not looked_up:
+            old_message = await _resolve_status_message(channel, channel_id)
+            if old_message is _SKIP:
                 continue
 
             try:
-                if old_message:
+                if old_message is not None:
                     await old_message.edit(embed=embed)
-                    _status_message_ids[channel_id] = old_message.id
+                    if _status_message_ids.get(channel_id) != old_message.id:
+                        _status_message_ids[channel_id] = old_message.id
+                        _save_state()
                 else:
                     new_message = await channel.send(embed=embed)
                     _status_message_ids[channel_id] = new_message.id
+                    _save_state()
                     try:
                         await new_message.pin()
                     except disnake.HTTPException:

@@ -166,3 +166,4 @@ pylint_report.txt
 update_container.sh
 data/vacations.sqlite3
 commands/misc/search_bans_in_channel.py
+status_message_state.json
