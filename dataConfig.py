@@ -417,7 +417,6 @@ def get_db_server_config(server_name: str | None = None) -> dict[str, Any] | Non
 
 
 def resolve_server_by_host_name(host_name: str | None) -> dict[str, Any] | None:
-    """Ищет конфиг сервера по GameHostName из push-событий SS14 (round/ahelp API)."""
     normalized = (host_name or "").strip().lower()
     if not normalized:
         return None
@@ -434,7 +433,26 @@ def resolve_server_by_host_name(host_name: str | None) -> dict[str, Any] | None:
         if normalized in candidates:
             return server
 
-    return None
+    fallback: dict[str, Any] | None = None
+    for name in SERVER_ORDER:
+        server = SERVERS[name]
+        if (server.get("game_host_name") or "").strip():
+            continue
+        short = (server.get("name") or "").strip().lower()
+        if short and short in normalized:
+            if fallback is not None:
+                return None
+            fallback = server
+
+    return fallback
+
+
+def get_server_label(server: dict[str, Any] | None, host_name: str | None) -> str:
+    if (host_name or "").strip():
+        return str(host_name).strip()
+    if server:
+        return str(server.get("display_name") or server.get("name") or "?")
+    return "?"
 
 
 def get_round_notify_target(host_name: str | None) -> tuple[dict[str, Any], int, int | None] | None:

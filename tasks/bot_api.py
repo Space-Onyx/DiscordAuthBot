@@ -7,7 +7,7 @@ from aiohttp import web
 import disnake
 
 from bot_init import bot, ss14_db
-from dataConfig import BOT_API_HOST, BOT_API_PORT, BOT_API_TOKEN, get_ahelp_notify_target, get_ban_notify_target, get_round_notify_target
+from dataConfig import BOT_API_HOST, BOT_API_PORT, BOT_API_TOKEN, get_ahelp_notify_target, get_ban_notify_target, get_round_notify_target, get_server_label
 from notifications_utils import build_ahelp_embed, build_ban_embed, build_role_ping_content, build_round_embed
 from tasks.discord_auth import set_linked_role_for_discord_id
 
@@ -184,7 +184,7 @@ async def _round_event_handler(request: web.Request) -> web.Response:
         except Exception as e:
             return web.json_response({"ok": False, "message": f"Канал недоступен: {e}"}, status=404)
 
-        embed = build_round_embed(payload, server.get("display_name") or server.get("name", "?"))
+        embed = build_round_embed(payload, get_server_label(server, payload.get("serverName")))
         # Пинг роли всегда вне embed. Пингуем только о конце раунда, как раньше через вебхуки.
         content = build_role_ping_content(ping_role) if event_type == "ended" else None
 
@@ -221,7 +221,7 @@ async def _ahelp_event_handler(request: web.Request) -> web.Response:
         except Exception as e:
             return web.json_response({"ok": False, "message": f"Канал недоступен: {e}"}, status=404)
 
-        server_label = server.get("display_name") or server.get("name", "?")
+        server_label = get_server_label(server, payload.get("serverName"))
         round_id = payload.get("roundId", "—")
         run_level = payload.get("runLevel")
         conversations = payload.get("conversations") or []
@@ -295,8 +295,7 @@ async def _ban_event_handler(request: web.Request) -> web.Response:
         except Exception as e:
             return web.json_response({"ok": False, "message": f"Канал недоступен: {e}"}, status=404)
 
-        # Баны всегда только embed, без пинга.
-        embed = build_ban_embed(payload)
+        embed = build_ban_embed(payload, get_server_label(server, payload.get("serverName")))
 
         try:
             await channel.send(embed=embed)

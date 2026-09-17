@@ -57,7 +57,7 @@ def build_role_ping_content(role_id: int | None) -> str | None:
     return f"<@&{role_id}>"
 
 
-def build_ban_embed(event: dict) -> Embed:
+def build_ban_embed(event: dict, server_label: str | None = None) -> Embed:
     embed = Embed(
         title=event.get("title") or "Бан",
         color=event.get("color", embed_ban.get("color", 0x8B0000)),
@@ -66,4 +66,6 @@ def build_ban_embed(event: dict) -> Embed:
     footer = event.get("footer")
     if footer:
         embed.set_footer(text=footer)
+    elif server_label:
+        embed.set_footer(text=server_label)
     return embed

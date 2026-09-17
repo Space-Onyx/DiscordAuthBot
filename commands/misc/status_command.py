@@ -29,7 +29,8 @@ async def status_command(ctx, server: str = DEFAULT_SERVER_NAME):
                 data = await resp.json()
                 status_text = compute_status_text(data.get("run_level"))
                 round_length_text = compute_round_length_text(data.get("round_start_time"))
-                embed = build_status_embed(data, server_name, status_text, round_length_text)
+                host_label = (data.get("name") or "").strip() or server_name
+                embed = build_status_embed(data, host_label, status_text, round_length_text)
                 await ctx.send(embed=embed)
     except Exception as e:
         await ctx.send(f"Ошибка: {e}")
