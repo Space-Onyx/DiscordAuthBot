@@ -26,4 +26,6 @@ async def admin_help_command(ctx):
     embed = Embed(title=embed_admin_help["title"], color=embed_admin_help["color"], description=embed_admin_help["description"])
     for field in embed_admin_help["fields"]:
         embed.add_field(name=field["name"], value=field["value"], inline=field["inline"])
+    if bot.user is not None:
+        embed.set_author(name=f"{bot.user.display_name} · Администрирование", icon_url=bot.user.display_avatar.url)
     await ctx.send(embed=embed)

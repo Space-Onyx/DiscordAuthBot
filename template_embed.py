@@ -1,5 +1,5 @@
 ﻿# Shared embed styles and static text.
-COLOR_PRIMARY = 0x5865F2
+COLOR_PRIMARY = 0xF15861
 COLOR_SUCCESS = 0x57F287
 COLOR_WARNING = 0xFEE75C
 COLOR_DANGER = 0xED4245
@@ -9,12 +9,12 @@ embed_status = {
     "color": COLOR_PRIMARY,
     "fields": [
         {"name": "Игроки", "key": "online", "inline": True},
-        {"name": "Состояние", "key": "status", "inline": True},
-        {"name": "Паник-бункер", "key": "bunker", "inline": True},
-        {"name": "Раунд", "key": "round_id", "inline": True},
         {"name": "Карта", "key": "map", "inline": True},
         {"name": "Режим", "key": "preset", "inline": True},
+        {"name": "Состояние", "key": "status", "inline": True},
         {"name": "Длительность", "key": "duration", "inline": True},
+        {"name": "Раунд", "key": "round_id", "inline": True},
+        {"name": "Паник-бункер", "key": "bunker", "inline": True},
     ],
 }
 
@@ -53,7 +53,7 @@ embed_discord_link = {
 }
 
 embed_help = {
-    "title": "Команды Space Onyx",
+    "title": "Команды бота",
     "color": COLOR_PRIMARY,
     "fields": [
         {"name": "Аккаунт", "value": '`&whoami` — ваши привязки и общая наигровка\n`&playtime [сервер]` — полная наигровка по ролям\nПсевдоним: `&hours`', "inline": False},

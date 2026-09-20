@@ -9,8 +9,7 @@ async def help_command(ctx):
     for field in embed_help["fields"]:
         embed.add_field(name=field["name"], value=field["value"], inline=field["inline"])
 
-    # display_avatar всегда доступен (и для дефолтной аватарки тоже).
     if bot.user is not None:
-        embed.set_thumbnail(url=bot.user.display_avatar.url)
+        embed.set_author(name=bot.user.display_name, icon_url=bot.user.display_avatar.url)
 
     await ctx.send(embed=embed)
