@@ -1,6 +1,6 @@
 ﻿from datetime import datetime, timedelta, timezone
 from disnake import Embed
-from template_embed import COLOR_DANGER, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_WARNING, embed_status
+from template_embed import COLOR_DANGER, COLOR_PRIMARY, COLOR_ROUND_END, COLOR_SUCCESS, COLOR_WARNING, embed_status
 
 
 def compute_status_text(run_level: int | str | None) -> str:
@@ -51,7 +51,7 @@ def build_status_embed(data: dict, status_text: str, round_length_text: str) -> 
     color = {
         "Раунд идёт": COLOR_SUCCESS,
         "Лобби": COLOR_WARNING,
-        "Раунд завершён": COLOR_DANGER,
+        "Раунд завершён": COLOR_ROUND_END,
         "Неизвестно": COLOR_DANGER,
     }.get(status_text, COLOR_PRIMARY)
     embed = Embed(title=title, color=color, timestamp=datetime.now(timezone.utc))

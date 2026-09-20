@@ -1,9 +1,11 @@
 ﻿# Shared embed styles and static text.
-COLOR_PRIMARY = 0xF15861
-COLOR_SUCCESS = 0x57F287
-COLOR_WARNING = 0xFEE75C
-COLOR_DANGER = 0xED4245
-COLOR_NEUTRAL = 0x2B2D31
+COLOR_PRIMARY = 0x0099FF
+COLOR_SUCCESS = 0x00FF00
+COLOR_WARNING = 0xF1C40F
+COLOR_DANGER = 0xFF0000
+COLOR_NEUTRAL = 0x3498DB
+COLOR_ROUND_END = 0xE74C3C
+COLOR_BAN = 0x8B0000
 
 embed_status = {
     "color": COLOR_PRIMARY,
@@ -82,7 +84,7 @@ embed_round = {
     },
     "ended": {
         "title": "Раунд завершён",
-        "color": COLOR_DANGER,
+        "color": COLOR_ROUND_END,
         "fields": [
             {"name": "Раунд", "key": "round_id", "inline": True},
             {"name": "Длительность", "key": "duration", "inline": True},
@@ -101,5 +103,5 @@ embed_ahelp = {
 # Уведомления о банах из Ban API сервера (Content.Server._Onyx.Discord.Bans).
 # Всегда только embed, без пинга. Цвет приходит с сервера.
 embed_ban = {
-    "color": COLOR_DANGER,
+    "color": COLOR_BAN,
 }
