@@ -3,6 +3,7 @@ from disnake.ext import commands
 
 from bot_init import bot, ss14_db
 from dataConfig import get_db_server_names
+from template_embed import COLOR_PRIMARY
 
 
 def _format_hours(seconds: float) -> str:
@@ -18,18 +19,18 @@ async def whoami_command(ctx):
         await ctx.send("Серверы с БД не настроены.")
         return
 
-    embed = Embed(title="Ваш аккаунт SS14", color=0x3498DB)
+    embed = Embed(title="Ваш профиль SS14", color=COLOR_PRIMARY)
     found = False
     for server_name in servers:
         try:
             playtimes = await ss14_db.get_player_playtime(server_name, discord_id=str(ctx.author.id))
         except Exception as error:
             print(f"[WhoAmI] server={server_name} user={ctx.author.id} error={error}")
-            embed.add_field(name=server_name.upper(), value="БД недоступна", inline=False)
+            embed.add_field(name=server_name.upper(), value="БД недоступна", inline=True)
             continue
 
         if not playtimes:
-            embed.add_field(name=server_name.upper(), value="Не привязан", inline=False)
+            embed.add_field(name=server_name.upper(), value="Не привязан", inline=True)
             continue
 
         found = True
@@ -37,8 +38,8 @@ async def whoami_command(ctx):
         total = _format_hours(overall["seconds"]) if overall else "нет данных"
         embed.add_field(
             name=server_name.upper(),
-            value=f"Игрок: `{playtimes[0]['last_seen_user_name']}`\nНаигровка: **{total}**",
-            inline=False,
+            value=f"`{playtimes[0]['last_seen_user_name']}`\n**{total}**",
+            inline=True,
         )
 
     if not found:

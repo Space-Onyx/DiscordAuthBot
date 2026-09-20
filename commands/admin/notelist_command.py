@@ -4,6 +4,7 @@ from disnake.ext.commands import has_any_role
 from bot_init import bot, ss14_db
 from dataConfig import DEFAULT_DB_SERVER, ROLE_ACCESS_MODERATORS, ROLE_ACCESS_EVENTOLOGY
 from server_utils import resolve_server_for_command
+from template_embed import COLOR_DANGER
 
 
 @has_any_role(*ROLE_ACCESS_MODERATORS, *ROLE_ACCESS_EVENTOLOGY)
@@ -19,8 +20,8 @@ async def player_notes_command(ctx, nickname: str, server: str = DEFAULT_DB_SERV
     if not notes:
         embed = disnake.Embed(
             title="Заметки не найдены",
-            description=f"{nickname} без заметок на {server_name.upper()}.",
-            color=0xFF0000,
+            description=f"У `{nickname}` нет заметок на `{server_name.upper()}`.",
+            color=COLOR_DANGER,
         )
         await ctx.send(embed=embed)
         return
@@ -29,9 +30,9 @@ async def player_notes_command(ctx, nickname: str, server: str = DEFAULT_DB_SERV
     for index, note in enumerate(notes):
         if index % 10 == 0:
             embed = disnake.Embed(
-                title=f"Заметки {nickname} ({len(notes)})",
-                description=f"Сервер: {server_name.upper()}",
-                color=0x8B0000,
+                title=f"Заметки · {nickname} · {server_name.upper()}"[:256],
+                description=f"Записей: **{len(notes)}**",
+                color=COLOR_DANGER,
             )
             embeds.append(embed)
         note_id, created_at, message, severity, secret, last_edited_at, last_edited_by_id, player_id, last_seen_user_name, created_by_name = note
@@ -39,16 +40,15 @@ async def player_notes_command(ctx, nickname: str, server: str = DEFAULT_DB_SERV
         note_message = message.replace("\n", " ") if message else "Нет сообщения"
 
         info = (
-            f"**Дата:** {created_str}\n"
-            f"**Админ:** {created_by_name or '?'}\n"
-            f"**Сообщение:** {note_message}"
+            f"{note_message}\n"
+            f"`{created_str}` · {created_by_name or 'неизвестно'}"
         )
 
         if last_edited_at:
             edited_str = last_edited_at.strftime("%Y-%m-%d %H:%M:%S")
-            info += f"\n**Редактировано:** {edited_str}"
+            info += f"\nИзменено: `{edited_str}`"
 
-        embed.add_field(name=f"Заметка #{note_id}", value=info[:1024], inline=False)
+        embed.add_field(name=f"#{note_id}", value=info[:1024], inline=False)
 
     for embed in embeds:
         await ctx.send(embed=embed)

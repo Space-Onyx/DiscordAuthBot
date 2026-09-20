@@ -2,6 +2,7 @@
 
 from bot_init import bot
 from dataConfig import get_db_server_names, get_server_names
+from template_embed import COLOR_PRIMARY
 
 
 @bot.command(name="servers")
@@ -12,9 +13,9 @@ async def servers_command(ctx):
         return
 
     db_servers = set(get_db_server_names())
-    embed = Embed(title="Список серверов", color=0x3498DB)
+    embed = Embed(title="Игровые серверы", color=COLOR_PRIMARY)
     for name in server_names:
-        value = "Статус и наигровка" if name in db_servers else "Только статус"
-        embed.add_field(name=name.upper(), value=value, inline=False)
+        value = "Статус · Наигровка" if name in db_servers else "Статус"
+        embed.add_field(name=name.upper(), value=value, inline=True)
 
     await ctx.send(embed=embed)

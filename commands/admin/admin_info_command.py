@@ -5,6 +5,7 @@ from disnake.ext.commands import has_any_role
 from bot_init import bot
 from dataConfig import DEFAULT_SERVER_NAME, ROLE_ACCESS_MODERATORS, ROLE_ACCESS_EVENTOLOGY, build_admin_headers, build_admin_url
 from server_utils import resolve_server_for_command
+from template_embed import COLOR_PRIMARY
 
 
 def add_chunked_fields(embed, name, value, max_length=1024, inline=False):
@@ -80,11 +81,10 @@ async def admin_info_command(ctx, server: str = DEFAULT_SERVER_NAME):
                         f"{key}: {value}" for key, value in data.get("PanicBunker", {}).items() if value is not None
                     ) or "Не активирован",
                 }
-                embed = Embed(title="Информация о сервере SS14", color=0x3498DB)
+                embed = Embed(title=f"Сервер · {server_name.upper()}"[:256], color=COLOR_PRIMARY)
                 for name, value in values.items():
                     add_chunked_fields(embed, name, value)
 
-                embed.set_footer(text=f"Сервер: {server_name.upper()}")
                 await ctx.send(embed=embed)
     except Exception as error:
         print(f"[AdminInfo] server={server_name} error={error}")

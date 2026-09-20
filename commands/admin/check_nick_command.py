@@ -7,6 +7,7 @@ from disnake.ext.commands import has_any_role
 from bot_init import bot, ss14_db
 from dataConfig import CHECK_NICK_ACCOUNT_WHITELIST, DEFAULT_DB_SERVER, ROLE_ACCESS_MODERATORS
 from server_utils import resolve_server_for_command
+from template_embed import COLOR_DANGER
 
 
 async def get_creation_date(uuid: str):
@@ -57,11 +58,9 @@ async def check_nick_command(ctx, nickname: str, server: str = DEFAULT_DB_SERVER
             discord_name = discord_member.name
         except Exception:
             discord_name = "Неизвестно"
-        discord_message = f"Привязан Discord: <@{discord_id}> ({discord_name}, ID: {discord_id})"
+        discord_message = f"<@{discord_id}> · {discord_name} · `{discord_id}`"
     else:
         discord_message = "Discord не привязан."
-
-    related_accounts_str = "Совпадение по аккаунтам:\n"
 
     filtered_related_accounts = [
         acc for acc in related_accounts 
@@ -69,35 +68,46 @@ async def check_nick_command(ctx, nickname: str, server: str = DEFAULT_DB_SERVER
         and acc[0].casefold() != last_seen_user_name.casefold()
     ]
 
-    if filtered_related_accounts:
-        for acc in filtered_related_accounts:
-            related_user_name, related_address, related_hwid, related_last_seen_time = acc
+    related_lines = []
+    for acc in filtered_related_accounts:
+        related_user_name, related_address, related_hwid, related_last_seen_time = acc
 
-            related_last_seen_time_str = (
-                related_last_seen_time.strftime("%Y-%m-%d %H:%M:%S")
-                if isinstance(related_last_seen_time, datetime)
-                else "Неизвестно"
-            )
+        related_last_seen_time_str = (
+            related_last_seen_time.strftime("%Y-%m-%d %H:%M:%S")
+            if isinstance(related_last_seen_time, datetime)
+            else "Неизвестно"
+        )
 
-            if related_address == last_seen_address and related_hwid != last_seen_hwid:
-                related_accounts_str += f"{related_user_name} [IP] | Последний заход: {related_last_seen_time_str}\n"
-            elif related_hwid == last_seen_hwid and related_address != last_seen_address:
-                related_accounts_str += f"{related_user_name} [HWID] | Последний заход: {related_last_seen_time_str}\n"
-            elif related_hwid == last_seen_hwid and related_address == last_seen_address:
-                related_accounts_str += f"{related_user_name} [IP, HWID] | Последний заход: {related_last_seen_time_str}\n"
-    else:
-        related_accounts_str += "Не найдены"
+        matches = []
+        if related_address == last_seen_address:
+            matches.append("IP")
+        if related_hwid == last_seen_hwid:
+            matches.append("HWID")
+        if matches:
+            related_lines.append(f"`{related_user_name}` · {', '.join(matches)} · {related_last_seen_time_str}")
 
-    description = (
-        f"Сервер БД: {server_name.upper()}\n\n"
-        f"Первый заход: {first_seen_formatted}\n"
-        f"Последний заход: {last_seen_time_formatted}\n"
-        f"Дата создания: {creation_date}\n\n"
-        f"HWID: {hwid_message}\n"
-        f"GUID: {guid}\n\n"
-        f"{discord_message}\n\n"
-        f"{related_accounts_str}"
+    embed = disnake.Embed(
+        title=f"Игрок · {last_seen_user_name}"[:256],
+        description=f"Сервер `{server_name.upper()}` · внутренний ID `{player_id}`",
+        color=COLOR_DANGER,
     )
+    embed.add_field(
+        name="Активность",
+        value=f"Первый вход: {first_seen_formatted}\nПоследний вход: {last_seen_time_formatted}\nСоздан: {creation_date}",
+        inline=False,
+    )
+    embed.add_field(name="Идентификаторы", value=f"GUID: `{guid}`\nHWID: `{hwid_message}`", inline=False)
+    embed.add_field(name="Discord", value=discord_message, inline=False)
 
-    embed = disnake.Embed(title=f"{last_seen_user_name} | ID {player_id}", description=description, color=0xFF0000)
+    related_text = "\n".join(related_lines) or "Совпадений не найдено"
+    while related_text and len(embed.fields) < 25:
+        chunk = related_text[:1024]
+        if len(related_text) > 1024 and "\n" in chunk:
+            chunk = chunk.rsplit("\n", 1)[0]
+        embed.add_field(
+            name="Связанные аккаунты" if len(embed.fields) == 3 else "Связанные аккаунты · продолжение",
+            value=chunk,
+            inline=False,
+        )
+        related_text = related_text[len(chunk):].lstrip()
     await ctx.send(embed=embed)

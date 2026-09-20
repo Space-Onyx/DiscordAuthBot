@@ -12,11 +12,8 @@ from status_utils import build_status_embed, compute_round_length_text, compute_
 from template_embed import embed_status
 
 _STATE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "status_message_state.json")
-_STATUS_FOOTER_PREFIX = "Сервер: "
-_STATUS_FIELD_NAME = next(
-    (field["name"] for field in embed_status["fields"] if field.get("key") == "status"),
-    "Статус",
-)
+_STATUS_FIELD_NAMES = {field["name"] for field in embed_status["fields"]}
+_LEGACY_STATUS_FIELD_NAMES = {"Онлайн", "Карта", "Режим", "Статус", "Время раунда", "Раунд", "Бункер"}
 _SKIP = object()
 
 _status_message_ids: dict[int, int] = {}
@@ -58,10 +55,8 @@ def _is_status_message(message) -> bool:
     if bot.user is None or message.author.id != bot.user.id or not message.embeds:
         return False
     embed = message.embeds[0]
-    footer = embed.footer
-    if not footer or not footer.text or not footer.text.startswith(_STATUS_FOOTER_PREFIX):
-        return False
-    return any(field.name == _STATUS_FIELD_NAME for field in embed.fields)
+    field_names = {field.name for field in embed.fields}
+    return _STATUS_FIELD_NAMES.issubset(field_names) or _LEGACY_STATUS_FIELD_NAMES.issubset(field_names)
 
 
 async def _resolve_status_message(channel, channel_id: int):
@@ -117,9 +112,8 @@ async def status_update():
 
             resolved_server = resolve_server_name(server_name)
             url = build_status_url(resolved_server)
-            host_label = resolved_server or "не задан"
             if not url:
-                embed = build_status_embed({}, host_label, "Неизвестно", "Не начался")
+                embed = build_status_embed({}, "Неизвестно", "Не начался")
                 embed.title = "Ошибка"
                 embed.description = "Не настроен сервер для статус-сообщения."
             else:
@@ -127,17 +121,16 @@ async def status_update():
                     async with session.get(url) as resp:
                         if resp.status == 200:
                             data = await resp.json()
-                            host_label = (data.get("name") or "").strip() or host_label
                             status_text = compute_status_text(data.get("run_level"))
                             round_length_text = compute_round_length_text(data.get("round_start_time"))
-                            embed = build_status_embed(data, host_label, status_text, round_length_text)
+                            embed = build_status_embed(data, status_text, round_length_text)
                         else:
-                            embed = build_status_embed({}, host_label, "Неизвестно", "Не начался")
+                            embed = build_status_embed({}, "Неизвестно", "Не начался")
                             embed.title = "Ошибка"
                             embed.description = f"Код {resp.status}"
                 except Exception as e:
                     print(f"[StatusMessage] server={server_name} error={e}")
-                    embed = build_status_embed({}, host_label, "Неизвестно", "Не начался")
+                    embed = build_status_embed({}, "Неизвестно", "Не начался")
                     embed.title = "Ошибка"
                     embed.description = "Сервер статуса недоступен."
 

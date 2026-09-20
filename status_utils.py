@@ -1,6 +1,6 @@
 ﻿from datetime import datetime, timedelta, timezone
 from disnake import Embed
-from template_embed import embed_status
+from template_embed import COLOR_DANGER, COLOR_PRIMARY, COLOR_SUCCESS, COLOR_WARNING, embed_status
 
 
 def compute_status_text(run_level: int | None) -> str:
@@ -31,7 +31,7 @@ def compute_round_length_text(round_start_time: str | None) -> str:
         return "Не начался"
 
 
-def build_status_embed(data: dict, server_label: str, status_text: str, round_length_text: str) -> Embed:
+def build_status_embed(data: dict, status_text: str, round_length_text: str) -> Embed:
     title = str(data.get("name") or "Без названия")[:256]
     values = {
         "online": f"{data.get('players', 0)}/{data.get('soft_max_players', 0)}",
@@ -43,11 +43,15 @@ def build_status_embed(data: dict, server_label: str, status_text: str, round_le
         "bunker": "Включен" if data.get("panic_bunker") else "Выключен",
     }
 
-    embed = Embed(title=title, color=embed_status["color"])
+    color = {
+        "Раунд идет": COLOR_SUCCESS,
+        "Ожидание": COLOR_WARNING,
+        "Неизвестно": COLOR_DANGER,
+    }.get(status_text, COLOR_PRIMARY)
+    embed = Embed(title=title, color=color, timestamp=datetime.now(timezone.utc))
     for field in embed_status["fields"]:
         key = field.get("key")
         value = str(values.get(key, "—"))[:1024]
         embed.add_field(name=field["name"], value=value, inline=field.get("inline", False))
 
-    embed.set_footer(text=f"Сервер: {server_label}"[:2048])
     return embed

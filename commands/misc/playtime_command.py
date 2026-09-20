@@ -11,6 +11,7 @@ from dataConfig import (
     ROLE_ACCESS_OBSERVER_ADMIN,
 )
 from server_utils import parse_server_from_tokens, resolve_server_for_command
+from template_embed import COLOR_PRIMARY
 
 
 DISCORD_MENTION = re.compile(r"^<@!?(\d+)>$")
@@ -33,6 +34,10 @@ def _format_playtime(seconds: float) -> str:
     total_minutes = max(0, int(seconds // 60))
     hours, minutes = divmod(total_minutes, 60)
     return f"{hours} ч {minutes} мин"
+
+
+def _format_tracker_name(tracker: str) -> str:
+    return tracker[3:] if tracker.casefold().startswith("job") and len(tracker) > 3 else tracker
 
 
 def _split_lines(lines: list[str], limit: int = 3900) -> list[str]:
@@ -115,7 +120,7 @@ async def playtime_command(ctx, *args: str):
 
     player_name = playtimes[0]["last_seen_user_name"]
     tracker_lines = [
-        f"`{row['tracker']}`: **{_format_playtime(row['seconds'])}**"
+        f"`{_format_tracker_name(row['tracker'])}`: **{_format_playtime(row['seconds'])}**"
         for row in playtimes
         if row["tracker"] and row["tracker"] != "Overall"
     ]
@@ -125,13 +130,12 @@ async def playtime_command(ctx, *args: str):
 
     embeds = []
     for index, description in enumerate(descriptions):
-        title = f"Наигранное время: {player_name}"
+        title = f"Наигранное время: {player_name} · {server_name.upper()}"
         if len(descriptions) > 1:
             title += f" ({index + 1}/{len(descriptions)})"
-        embed = Embed(title=title, description=description, color=0x3498DB)
         if index == 0:
-            embed.add_field(name="Общее время", value=total_text, inline=False)
-        embed.set_footer(text=f"Сервер: {server_name.upper()} | Роли указаны по tracker ID")
+            description = f"**Общее время**\n{total_text}\n\n**Должности**\n{description}"
+        embed = Embed(title=title[:256], description=description, color=COLOR_PRIMARY)
         embeds.append(embed)
 
     for embed in embeds:

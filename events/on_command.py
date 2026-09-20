@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from bot_init import bot
 from template_embed import embed_log
@@ -7,12 +7,11 @@ from dataConfig import LOG_CHANNEL_ID
 
 @bot.event
 async def on_command(ctx):
-    embed = Embed(title=embed_log["title"], color=embed_log["color"])
+    embed = Embed(title=embed_log["title"], color=embed_log["color"], timestamp=datetime.now(timezone.utc))
     value_map = {
         "ctx.command": ctx.command,
         "ctx.author": ctx.author,
         "ctx.author.id": ctx.author.id,
-        "datetime.now().strftime('%Y-%m-%d %H:%M:%S')": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
     for field in embed_log["fields"]:

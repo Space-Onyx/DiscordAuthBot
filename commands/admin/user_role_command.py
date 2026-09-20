@@ -44,8 +44,10 @@ async def _send_role_members(ctx, value: str, mentions: bool) -> None:
         chunks.append(current)
 
     for index, chunk in enumerate(chunks):
-        title = f"{role.name} ({len(lines)})" if index == 0 else None
-        await ctx.send(embed=disnake.Embed(title=title, description=chunk, color=role.color))
+        title = f"Роль · {role.name}" if index == 0 else f"Роль · {role.name} · продолжение"
+        if index == 0:
+            chunk = f"Участников: **{len(lines)}**\n\n{chunk}"
+        await ctx.send(embed=disnake.Embed(title=title[:256], description=chunk, color=role.color))
 
 
 @bot.command(name='user_role')

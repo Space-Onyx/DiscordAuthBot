@@ -19,8 +19,8 @@ async def list_permission_command(ctx, dbname: str = DEFAULT_DB_SERVER):
 
     permissions = "\n".join(f"`{row['name']}`" for row in list_permissions) or "Права не найдены."
     embed = Embed(
-        title=embed_list_permission["title"],
-        description=f"Сервер: {server_name.upper()}\n\n{permissions}"[:4096],
+        title=f"{embed_list_permission['title']} · {server_name.upper()}"[:256],
+        description=permissions[:4096],
         color=embed_list_permission["color"],
     )
 

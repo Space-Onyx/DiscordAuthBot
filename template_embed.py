@@ -1,58 +1,65 @@
-﻿# Status embed config and static text
+﻿# Shared embed styles and static text.
+COLOR_PRIMARY = 0x5865F2
+COLOR_SUCCESS = 0x57F287
+COLOR_WARNING = 0xFEE75C
+COLOR_DANGER = 0xED4245
+COLOR_NEUTRAL = 0x2B2D31
+
 embed_status = {
-    "color": 0x00ff00,
+    "color": COLOR_PRIMARY,
     "fields": [
-        {"name": "Онлайн", "key": "online", "inline": True},
+        {"name": "Игроки", "key": "online", "inline": True},
+        {"name": "Состояние", "key": "status", "inline": True},
+        {"name": "Паник-бункер", "key": "bunker", "inline": True},
+        {"name": "Раунд", "key": "round_id", "inline": True},
         {"name": "Карта", "key": "map", "inline": True},
         {"name": "Режим", "key": "preset", "inline": True},
-        {"name": "Статус", "key": "status", "inline": True},
-        {"name": "Время раунда", "key": "duration", "inline": True},
-        {"name": "Раунд", "key": "round_id", "inline": True},
-        {"name": "Бункер", "key": "bunker", "inline": True},
+        {"name": "Длительность", "key": "duration", "inline": True},
     ],
 }
 
 embed_log = {
-    "title": "Использование команды",
-    "color": 0x0099ff,
+    "title": "Команда выполнена",
+    "color": COLOR_NEUTRAL,
     "fields": [
-        {"name": "Команда", "value": "ctx.command", "inline": False},
-        {"name": "Пользователь", "value": "ctx.author", "inline": False},
-        {"name": "ID пользователя", "value": "ctx.author.id", "inline": False},
-        {"name": "Время", "value": "datetime.now().strftime('%Y-%m-%d %H:%M:%S')", "inline": False}
+        {"name": "Команда", "value": "ctx.command", "inline": True},
+        {"name": "Пользователь", "value": "ctx.author", "inline": True},
+        {"name": "Discord ID", "value": "ctx.author.id", "inline": True},
     ]
 }
 
 embed_admin_help = {
-    "title": "Список админ-команд бота",
-    "color": 0xFF0000,
-    "description": "Префикс: `&`",
+    "title": "Панель команд",
+    "color": COLOR_DANGER,
+    "description": "Административные команды используют префикс `&`.",
     "fields": [
-        {"name": "Управление правами", "value": '&admin <nickname> — Проверка прав админа.\n&list_permission <server> — Выводит список прав сервера (по умолчанию БД-сервер по умолчанию).\n&add_permission <username> "<title>" "<permission>" <server> — Добавить права на выбранном сервере.\n&del_permission <username> <server> — Удалить права на выбранном сервере.\n&tweak_permission <username> "<title>" "<permission>" <server> — Изменить права на выбранном сервере.', "inline": False},
-        {"name": "Информация об игроке", "value": '&playtime [ник|@пользователь] [--server имя] — Показывает общую и ролевую наигровку.\n&logs <username> <round> <server> — Ищет админ-логи за указанный раунд.\n&check_nick <nickname> <server> — Проверка на мультиаккаунт.\n&get_ckey <Discord id> — Получить ckey по ID дискорда.\n&notelist <nickname> <server> — Заметки игрока.\n&banlist <nickname> <server> — Банлист игрока.', "inline": False},
-        {"name": "Баны и модерация", "value": '&ban <nickname> <reason...> <time_minutes> [server] — Выдает бан игроку.\n&kick <nickname> <reason...> [server] — Кик.\n&pardon <ban_id> [server] — Разбанивает игрока.\nПоддерживается явный сервер: --server <name> | -s <name> | server=<name>.', "inline": False},
-        {"name": "Сервер", "value": '&servers — Список серверов, доступных боту.\n&status <server> — Информация о сервере.\n&admin_info <server> — Подробная информация о сервере.\n&bunker <on/off> <server> — Включает/выключает бункер.\n&update <server> — Запускает обновление сервера.\n&restart <server> — Перезапускает сервер.', "inline": False},
+        {"name": "Права", "value": '`&admin <ник>` — проверить права\n`&list_permission [сервер]` — доступные ранги\n`&add_permission <ник> "<титул>" "<ранг>" [сервер]`\n`&tweak_permission <ник> "<титул>" "<ранг>" [сервер]`\n`&del_permission <ник> [сервер]`', "inline": False},
+        {"name": "Игроки", "value": '`&playtime [ник|@пользователь] [--server имя]`\n`&check_nick <ник> [сервер]` — связанные аккаунты\n`&get_ckey <Discord ID>` — игровая привязка\n`&notelist <ник> [сервер]` — заметки\n`&banlist <ник> [сервер]` — история банов\n`&logs <ник> <раунд> [сервер]` — админ-логи', "inline": False},
+        {"name": "Модерация", "value": '`&ban <ник> <причина> <минуты> [сервер]`\n`&kick <ник> <причина> [сервер]`\n`&pardon <ban_id> [сервер]`', "inline": True},
+        {"name": "Сервер", "value": '`&admin_info [сервер]`\n`&bunker <on|off> [сервер]`\n`&update [сервер]`\n`&restart [сервер]`', "inline": True},
+        {"name": "Выбор сервера", "value": "Последний аргумент либо `--server <имя>`, `-s <имя>`, `server=<имя>`.", "inline": False},
     ]
 }
 
 embed_list_permission = {
-    "title": "Список прав",
-    "color": 0xFF0000
+    "title": "Административные ранги",
+    "color": COLOR_DANGER
 }
 
 embed_discord_link = {
-    "title": "Привязка аккаунта SS14",
-    "description": "Нажмите кнопку и введите временный код для привязки аккаунта SS14.",
-    "color": 0x3498DB,
+    "title": "Связать аккаунт SS14",
+    "description": "Нажмите кнопку ниже и укажите cKey вместе с 12-значным временным кодом.",
+    "color": COLOR_PRIMARY,
 }
 
 embed_help = {
-    "title": "Список команд бота",
-    "color": 0x0099ff,
+    "title": "Команды Space Onyx",
+    "color": COLOR_PRIMARY,
     "fields": [
-        {"name": "Основные команды", "value": '&help — Справка по командам.\n&whoami — Ваши привязки и общая наигровка по серверам.\n&playtime [сервер] — Ваша полная наигровка (`&hours` тоже работает).\n&servers — Доступные серверы.\n&status <сервер> — Статус игрового сервера.\n&user_role <роль> — Участники роли.', "inline": False},
-        {"name": "Автоматизация", "value": 'Бот обновляет сообщения со статусом серверов, принимает игровые уведомления и управляет привязкой аккаунтов.', "inline": False},
-        {"name": "Репозиторий", "value": 'https://github.com/Space-Onyx/DiscordAuthBot | Оригинальный автор: [Darkiich](https://github.com/Darkiich)', "inline": False}
+        {"name": "Аккаунт", "value": '`&whoami` — ваши привязки и общая наигровка\n`&playtime [сервер]` — полная наигровка по ролям\nПсевдоним: `&hours`', "inline": False},
+        {"name": "Серверы", "value": '`&servers` — доступные игровые серверы\n`&status [сервер]` — текущее состояние сервера', "inline": True},
+        {"name": "Discord", "value": '`&user_role <роль>` — участники выбранной роли\n`&help` — открыть эту справку', "inline": True},
+        {"name": "О проекте", "value": '[Исходный код бота](https://github.com/Space-Onyx/DiscordAuthBot)\nОригинальный автор: [Darkiich](https://github.com/Darkiich)', "inline": False}
     ]
 }
 
@@ -60,12 +67,12 @@ embed_help = {
 # Пинг роли отправляется отдельным content вне embed.
 embed_round = {
     "lobby": {
-        "title": "Новый раунд начинается!",
-        "color": 0xF1C40F,
+        "title": "Новый раунд",
+        "color": COLOR_WARNING,
     },
     "started": {
         "title": "Раунд начался",
-        "color": 0x00FF00,
+        "color": COLOR_SUCCESS,
         "fields": [
             {"name": "Раунд", "key": "round_id", "inline": True},
             {"name": "Карта", "key": "map", "inline": True},
@@ -75,7 +82,7 @@ embed_round = {
     },
     "ended": {
         "title": "Раунд завершён",
-        "color": 0xE74C3C,
+        "color": COLOR_DANGER,
         "fields": [
             {"name": "Раунд", "key": "round_id", "inline": True},
             {"name": "Длительность", "key": "duration", "inline": True},
@@ -88,11 +95,11 @@ embed_round = {
 # Пинг роли отправляется отдельным content вне embed только для новых обращений.
 embed_ahelp = {
     "title": "Ахелп",
-    "color": 0x0099FF,
+    "color": COLOR_PRIMARY,
 }
 
 # Уведомления о банах из Ban API сервера (Content.Server._Onyx.Discord.Bans).
 # Всегда только embed, без пинга. Цвет приходит с сервера.
 embed_ban = {
-    "color": 0x8B0000,
+    "color": COLOR_DANGER,
 }
