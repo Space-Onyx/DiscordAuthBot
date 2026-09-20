@@ -12,7 +12,6 @@ async def on_command(ctx):
         "ctx.command": ctx.command,
         "ctx.author": ctx.author,
         "ctx.author.id": ctx.author.id,
-        "ctx.message.jump_url": ctx.message.jump_url,
         "datetime.now().strftime('%Y-%m-%d %H:%M:%S')": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 

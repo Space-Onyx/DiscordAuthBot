@@ -31,11 +31,12 @@ async def restart_command(ctx, server: str = DEFAULT_SERVER_NAME):
     await ctx.send(f"Запущен рестарт {server_name.upper()} сервера...")
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
             async with session.post(url, data=data, headers=headers) as resp:
                 if resp.status == 200:
                     await ctx.send(f"✅ Рестарт {server_name.upper()} выполнен.")
                 else:
                     await ctx.send(f"Ошибка: код {resp.status}")
-    except Exception as e:
-        await ctx.send(f"Ошибка: {e}")
+    except Exception as error:
+        print(f"[Restart] server={server_name} error={error}")
+        await ctx.send("Watchdog недоступен. Попробуйте позже.")

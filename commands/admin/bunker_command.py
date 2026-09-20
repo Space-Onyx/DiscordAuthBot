@@ -37,11 +37,12 @@ async def bunker_command(ctx, switch: str, server: str = DEFAULT_SERVER_NAME):
     data = {"game.panic_bunker.enabled": bunker_bool}
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
             async with session.patch(url, headers=headers, json=data) as resp:
                 if resp.status == 200:
                     await ctx.send(f"Паник-бункер {status}. Сервер: {server_name}.")
                 else:
-                    await ctx.send(f"Ошибка {resp.status}: {await resp.text()}")
-    except Exception as e:
-        await ctx.send(f"Ошибка: {e}")
+                    await ctx.send(f"Admin API вернул код {resp.status}.")
+    except Exception as error:
+        print(f"[Bunker] server={server_name} error={error}")
+        await ctx.send("Admin API недоступен. Попробуйте позже.")

@@ -60,11 +60,12 @@ async def kick_command(ctx, nickname: str, *args: str):
         return
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
             async with session.post(url, headers=headers, json=post_data) as resp:
                 if resp.status == 200:
                     await ctx.send(f"✅ Кик выполнен. Сервер: {server_name}.")
                 else:
                     await ctx.send(f"Ошибка: код {resp.status}")
-    except Exception as e:
-        await ctx.send(f"Ошибка: {e}")
+    except Exception as error:
+        print(f"[Kick] server={server_name} target={nickname} error={error}")
+        await ctx.send("Admin API недоступен. Попробуйте позже.")

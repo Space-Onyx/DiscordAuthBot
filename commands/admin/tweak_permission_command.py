@@ -24,11 +24,11 @@ async def tweak_permission_command(ctx, username: str, title: str, permission: s
 
     answer, message = await ss14_db.tweak_permission_admin(guid, username, title, permission, server_name)
     if not answer:
-        await ctx.send(f"Ошибка: {message}")
+        await ctx.send(message)
         return
 
     log_channel = bot.get_channel(LOG_CHANNEL_ID)
-    if log_channel:
+    if log_channel and MY_DS_ID and str(MY_DS_ID).isdigit():
         await log_channel.send(f"<@{MY_DS_ID}>")
 
     await ctx.send(message)

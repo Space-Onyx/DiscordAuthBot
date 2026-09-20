@@ -29,9 +29,13 @@ def build_round_embed(event: dict, server_label: str) -> Embed:
     embed = Embed(title=cfg.get("title", "Раунд"), color=cfg.get("color", 0x00FF00))
     for field in cfg.get("fields", []):
         key = field.get("key")
-        embed.add_field(name=field["name"], value=values.get(key, "—"), inline=field.get("inline", False))
+        embed.add_field(
+            name=str(field["name"])[:256],
+            value=str(values.get(key, "—"))[:1024],
+            inline=field.get("inline", False),
+        )
 
-    embed.set_footer(text=f"Сервер: {server_label}")
+    embed.set_footer(text=f"Сервер: {server_label}"[:2048])
     return embed
 
 
@@ -41,13 +45,14 @@ def build_ahelp_embed(conversation: dict, server_label: str, round_id: int | str
     title = f"{embed_ahelp.get('title', 'Ахелп')}: {ckey}"
     if character_name:
         title += f" ({character_name})"
+    title = title[:256]
 
     embed = Embed(
         title=title,
         color=embed_ahelp.get("color", 0x0099FF),
-        description=conversation.get("transcript") or "—",
+        description=str(conversation.get("transcript") or "—")[:4096],
     )
-    embed.set_footer(text=f"Сервер: {server_label} | Раунд: {round_id} | {run_level or '—'}")
+    embed.set_footer(text=f"Сервер: {server_label} | Раунд: {round_id} | {run_level or '—'}"[:2048])
     return embed
 
 
@@ -59,13 +64,13 @@ def build_role_ping_content(role_id: int | None) -> str | None:
 
 def build_ban_embed(event: dict, server_label: str | None = None) -> Embed:
     embed = Embed(
-        title=event.get("title") or "Бан",
+        title=str(event.get("title") or "Бан")[:256],
         color=event.get("color", embed_ban.get("color", 0x8B0000)),
-        description=event.get("description") or "—",
+        description=str(event.get("description") or "—")[:4096],
     )
     footer = event.get("footer")
     if footer:
-        embed.set_footer(text=footer)
+        embed.set_footer(text=str(footer)[:2048])
     elif server_label:
-        embed.set_footer(text=server_label)
+        embed.set_footer(text=str(server_label)[:2048])
     return embed

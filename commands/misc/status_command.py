@@ -1,5 +1,5 @@
 ﻿import aiohttp
-from disnake import Embed
+from disnake.ext import commands
 
 from bot_init import bot
 from dataConfig import DEFAULT_SERVER_NAME, build_status_url
@@ -8,6 +8,7 @@ from status_utils import build_status_embed, compute_round_length_text, compute_
 
 
 @bot.command(name="status")
+@commands.cooldown(3, 20, commands.BucketType.user)
 async def status_command(ctx, server: str = DEFAULT_SERVER_NAME):
     server_name, error = resolve_server_for_command(server)
     if error:
@@ -20,7 +21,7 @@ async def status_command(ctx, server: str = DEFAULT_SERVER_NAME):
         return
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
                     await ctx.send(f"Ошибка: код {resp.status}")
@@ -32,5 +33,6 @@ async def status_command(ctx, server: str = DEFAULT_SERVER_NAME):
                 host_label = (data.get("name") or "").strip() or server_name
                 embed = build_status_embed(data, host_label, status_text, round_length_text)
                 await ctx.send(embed=embed)
-    except Exception as e:
-        await ctx.send(f"Ошибка: {e}")
+    except Exception as error:
+        print(f"[Status] server={server_name} error={error}")
+        await ctx.send("Сервер статуса недоступен. Попробуйте позже.")

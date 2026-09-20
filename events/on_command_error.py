@@ -22,6 +22,10 @@ async def on_command_error(ctx, error):
         await ctx.send("❌ Неверный формат аргументов команды.")
         return
 
+    if isinstance(error, commands.CommandOnCooldown):
+        await ctx.send(f"⏳ Слишком часто. Повторите через {error.retry_after:.1f} сек.")
+        return
+
     if isinstance(error, commands.CommandInvokeError):
         original = error.original
         print(f"[CommandInvokeError] command={ctx.command} user={ctx.author} error={original}")

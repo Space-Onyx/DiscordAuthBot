@@ -17,9 +17,11 @@ async def list_permission_command(ctx, dbname: str = DEFAULT_DB_SERVER):
 
     list_permissions = await ss14_db.get_list_permission(server_name)
 
-    embed = Embed(title=embed_list_permission["title"], color=embed_list_permission["color"])
-    embed.description = f"Сервер: {server_name}"
-    for row in list_permissions:
-        embed.add_field(name="", value=f"`{row['name']}`", inline=False)
+    permissions = "\n".join(f"`{row['name']}`" for row in list_permissions) or "Права не найдены."
+    embed = Embed(
+        title=embed_list_permission["title"],
+        description=f"Сервер: {server_name.upper()}\n\n{permissions}"[:4096],
+        color=embed_list_permission["color"],
+    )
 
     await ctx.send(embed=embed)

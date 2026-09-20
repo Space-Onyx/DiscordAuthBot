@@ -25,10 +25,15 @@ async def banlist_command(ctx, nickname: str, server: str = DEFAULT_DB_SERVER):
         await ctx.send(embed=embed)
         return
 
-    embed = disnake.Embed(title=f"Баны {nickname} ({len(bans)})", color=0xFF8C00)
-    embed.description = f"Сервер: {server_name.upper()}"
-
-    for ban in bans:
+    embeds = []
+    for index, ban in enumerate(bans):
+        if index % 10 == 0:
+            embed = disnake.Embed(
+                title=f"Баны {nickname} ({len(bans)})",
+                description=f"Сервер: {server_name.upper()}",
+                color=0xFF8C00,
+            )
+            embeds.append(embed)
         ban_id, ban_time, exp_time, reason, admin_name, unban_time, unban_admin = ban
 
         ban_time_str = ban_time.strftime("%Y-%m-%d %H:%M:%S") if ban_time else "?"
@@ -44,6 +49,7 @@ async def banlist_command(ctx, nickname: str, server: str = DEFAULT_DB_SERVER):
             unban_str = unban_time.strftime("%Y-%m-%d %H:%M:%S")
             info += f"\n**Разбан:** {unban_str} ({unban_admin or '?'})"
 
-        embed.add_field(name=f"---------------\nБан #{ban_id}", value=info, inline=False)
+        embed.add_field(name=f"Бан #{ban_id}", value=info[:1024], inline=False)
 
-    await ctx.send(embed=embed)
+    for embed in embeds:
+        await ctx.send(embed=embed)

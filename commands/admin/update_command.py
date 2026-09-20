@@ -21,8 +21,7 @@ async def update_command(ctx, server: str = DEFAULT_SERVER_NAME):
         await ctx.send(error)
         return
 
-    server_config = get_server(server_name)
-    if not server_config:
+    if not get_server(server_name):
         await ctx.send("Не удалось получить конфиг сервера.")
         return
 
@@ -37,11 +36,12 @@ async def update_command(ctx, server: str = DEFAULT_SERVER_NAME):
     await ctx.send(f"Запуск обновления {server_name.upper()}...")
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
             async with session.post(url, headers=headers, json=data) as resp:
                 if resp.status == 200:
-                    await ctx.send(f"Код {resp.status}. Обновление на {server_name.upper()} успешно отправлено.")
+                    await ctx.send(f"Обновление {server_name.upper()} запущено.")
                 else:
-                    await ctx.send(f"Код {resp.status}. Обновление на {server_name.upper()} не отправлено.")
-    except Exception as e:
-        await ctx.send(f"Ошибка: {e}")
+                    await ctx.send(f"Watchdog отклонил обновление {server_name.upper()}: код {resp.status}.")
+    except Exception as error:
+        print(f"[Update] server={server_name} error={error}")
+        await ctx.send("Watchdog недоступен. Попробуйте позже.")

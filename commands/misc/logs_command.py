@@ -28,5 +28,6 @@ async def logs_command(ctx, username: str, round_id: int, db_name: str = DEFAULT
         chunks = [output[i:i + 2000] for i in range(0, len(output), 2000)]
         for chunk in chunks:
             await ctx.send(chunk)
-    except Exception as e:
-        await ctx.send(f"⚠️ Ошибка при получении логов: {e}")
+    except Exception as error:
+        print(f"[Logs] server={db_name} user={username} round={round_id} error={error}")
+        await ctx.send("Не удалось получить логи. Попробуйте позже.")

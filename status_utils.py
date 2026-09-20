@@ -32,7 +32,7 @@ def compute_round_length_text(round_start_time: str | None) -> str:
 
 
 def build_status_embed(data: dict, server_label: str, status_text: str, round_length_text: str) -> Embed:
-    title = data.get("name", "Без названия")
+    title = str(data.get("name") or "Без названия")[:256]
     values = {
         "online": f"{data.get('players', 0)}/{data.get('soft_max_players', 0)}",
         "map": data.get("map", "Неизвестно"),
@@ -46,8 +46,8 @@ def build_status_embed(data: dict, server_label: str, status_text: str, round_le
     embed = Embed(title=title, color=embed_status["color"])
     for field in embed_status["fields"]:
         key = field.get("key")
-        value = values.get(key, "—")
+        value = str(values.get(key, "—"))[:1024]
         embed.add_field(name=field["name"], value=value, inline=field.get("inline", False))
 
-    embed.set_footer(text=f"Сервер: {server_label}")
+    embed.set_footer(text=f"Сервер: {server_label}"[:2048])
     return embed

@@ -13,9 +13,7 @@ def load_modules(folder: str):
         importlib.import_module(f"{folder}.{mod_name}")
 
 load_modules('commands.admin')
-load_modules('commands.github')
 load_modules('commands.misc')
-load_modules('commands.team')
 load_modules('commands.discord')
 load_modules('tasks')
 load_modules('events')

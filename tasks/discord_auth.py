@@ -1,4 +1,5 @@
 ﻿import asyncio
+import time
 
 import disnake
 from disnake.ext import tasks
@@ -7,6 +8,9 @@ from bot_init import bot, ss14_db
 from dataConfig import CHANNEL_LOG_AUTH_DISCORD, LINKED_ACCOUNT_ROLE_ID, get_auth_channel_targets
 from template_embed import embed_discord_link
 
+
+_link_attempts: dict[int, float] = {}
+_LINK_ATTEMPT_COOLDOWN = 10.0
 
 def _resolve_linked_role_id() -> int | None:
     if LINKED_ACCOUNT_ROLE_ID in (None, "", 0, "0", "none", "None", "null", "Null"):
@@ -191,6 +195,8 @@ class NicknameModal(disnake.ui.Modal):
                 custom_id="ckey",
                 style=disnake.TextInputStyle.short,
                 required=True,
+                min_length=1,
+                max_length=32,
             ),
             disnake.ui.TextInput(
                 label="Введите код привязки",
@@ -198,6 +204,8 @@ class NicknameModal(disnake.ui.Modal):
                 custom_id="link_code",
                 style=disnake.TextInputStyle.short,
                 required=True,
+                min_length=12,
+                max_length=12,
             )
         ]
         super().__init__(title="Привязка аккаунта", components=components)
@@ -208,6 +216,13 @@ class NicknameModal(disnake.ui.Modal):
         link_code = inter.text_values["link_code"].strip()
         discord_id = str(inter.author.id)
 
+        now = time.monotonic()
+        retry_after = _LINK_ATTEMPT_COOLDOWN - (now - _link_attempts.get(inter.author.id, 0.0))
+        if retry_after > 0:
+            await inter.send(f"Слишком часто. Повторите через {retry_after:.1f} сек.", ephemeral=True)
+            return
+        _link_attempts[inter.author.id] = now
+
         if not ckey or not link_code:
             await inter.send("❌ cKey и код не могут быть пустыми.", ephemeral=True)
             await _safe_send_tech_log(
@@ -215,7 +230,12 @@ class NicknameModal(disnake.ui.Modal):
             )
             return
 
-        success, message = await ss14_db.link_user_by_code(ckey, link_code, discord_id)
+        try:
+            success, message = await ss14_db.link_user_by_code(ckey, link_code, discord_id)
+        except Exception as error:
+            print(f"[DiscordAuth] link user={discord_id} error={error}")
+            await inter.send("Привязка временно недоступна. Попробуйте позже.", ephemeral=True)
+            return
         await inter.send(message, ephemeral=True)
 
         if success:
@@ -227,15 +247,13 @@ class NicknameModal(disnake.ui.Modal):
                 a, _ = await set_linked_role_for_discord_id(discord_id, True)
                 added += a
 
-            uid = await ss14_db.get_player_guid_by_discord_id(discord_id)
-            uid_text = uid or "неизвестен"
             await _safe_send_tech_log(
-                f"✅ Привязка: {inter.author.name} ({discord_id}) к UID {uid_text}. RoleAdded={added}"
+                f"✅ Привязка: {inter.author.name} ({discord_id}). RoleAdded={added}"
             )
             return
 
         await _safe_send_tech_log(
-            f"⚠️ Ошибка привязки для {inter.author.name} ({discord_id}), cKey {ckey}: {message}."
+            f"⚠️ Ошибка привязки для {inter.author.name} ({discord_id}): {message}."
         )
 
 class RegisterButton(disnake.ui.View):

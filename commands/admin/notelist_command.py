@@ -25,10 +25,15 @@ async def player_notes_command(ctx, nickname: str, server: str = DEFAULT_DB_SERV
         await ctx.send(embed=embed)
         return
 
-    embed = disnake.Embed(title=f"Заметки {nickname} ({len(notes)})", color=0x8B0000)
-    embed.description = f"Сервер: {server_name.upper()}"
-
-    for note in notes:
+    embeds = []
+    for index, note in enumerate(notes):
+        if index % 10 == 0:
+            embed = disnake.Embed(
+                title=f"Заметки {nickname} ({len(notes)})",
+                description=f"Сервер: {server_name.upper()}",
+                color=0x8B0000,
+            )
+            embeds.append(embed)
         note_id, created_at, message, severity, secret, last_edited_at, last_edited_by_id, player_id, last_seen_user_name, created_by_name = note
         created_str = created_at.strftime("%Y-%m-%d %H:%M:%S") if created_at else "?"
         note_message = message.replace("\n", " ") if message else "Нет сообщения"
@@ -43,6 +48,7 @@ async def player_notes_command(ctx, nickname: str, server: str = DEFAULT_DB_SERV
             edited_str = last_edited_at.strftime("%Y-%m-%d %H:%M:%S")
             info += f"\n**Редактировано:** {edited_str}"
 
-        embed.add_field(name=f"---------------\nЗаметка #{note_id}", value=info, inline=False)
+        embed.add_field(name=f"Заметка #{note_id}", value=info[:1024], inline=False)
 
-    await ctx.send(embed=embed)
+    for embed in embeds:
+        await ctx.send(embed=embed)

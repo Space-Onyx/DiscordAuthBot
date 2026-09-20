@@ -136,9 +136,10 @@ async def status_update():
                             embed.title = "Ошибка"
                             embed.description = f"Код {resp.status}"
                 except Exception as e:
+                    print(f"[StatusMessage] server={server_name} error={e}")
                     embed = build_status_embed({}, host_label, "Неизвестно", "Не начался")
                     embed.title = "Ошибка"
-                    embed.description = str(e)
+                    embed.description = "Сервер статуса недоступен."
 
             old_message = await _resolve_status_message(channel, channel_id)
             if old_message is _SKIP:

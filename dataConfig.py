@@ -124,9 +124,6 @@ def _get_optional_env_int(key: str) -> int | None:
 
 # Токен Discord-бота.
 DISCORD_KEY = get_env("DISCORD_KEY")
-# GitHub token для git-команд бота.
-USER_KEY_GITHUB = get_env_optional("USER_KEY_GITHUB")
-
 POST_USER_AGENT = get_env_optional("POST_USER_AGENT") or "DiscordAuthBot/1.0"
 
 # Discord-каналы
@@ -138,7 +135,7 @@ BOT_API_HOST = os.getenv("BOT_API_HOST", "127.0.0.1")
 BOT_API_PORT = get_env_int("BOT_API_PORT", 8088)
 BOT_API_TOKEN = get_env("BOT_API_TOKEN")
 
-VACATION_ROLE_ID = get_env("VACATION_ROLE_ID")
+VACATION_ROLE_ID = _get_optional_env_int("VACATION_ROLE_ID")
 LINKED_ACCOUNT_ROLE_ID = get_env("LINKED_ACCOUNT_ROLE_ID")
 
 # Данные администратора для API.

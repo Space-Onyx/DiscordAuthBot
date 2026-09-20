@@ -77,7 +77,6 @@ class DatabaseManagerSS14:
             raise ValueError(f"БД {target_db} не настроена")
 
         params = self.db_params[target_db]
-        dsn = f"postgres://{params['user']}:{params['password']}@{params['host']}:{params['port']}/{params['database']}"
         pool = self._pools.get(target_db)
         if pool is None:
             lock = self._get_pool_lock(target_db)
@@ -85,7 +84,11 @@ class DatabaseManagerSS14:
                 pool = self._pools.get(target_db)
                 if pool is None:
                     pool = await asyncpg.create_pool(
-                        dsn,
+                        database=params["database"],
+                        user=params["user"],
+                        password=params["password"],
+                        host=params["host"],
+                        port=int(params["port"]),
                         min_size=1,
                         max_size=10,
                         command_timeout=self._command_timeout,
@@ -166,6 +169,47 @@ class DatabaseManagerSS14:
         try:
             result = await conn.fetchval("SELECT last_seen_user_name FROM player WHERE user_id = $1", guid)
             return result if result else None
+        finally:
+            await conn.close()
+
+    async def get_player_playtime(
+        self,
+        db_name: str,
+        *,
+        discord_id: str | None = None,
+        nickname: str | None = None,
+    ):
+        """Возвращает игрока и наигровку по всем трекерам одного сервера."""
+        if bool(discord_id) == bool(nickname):
+            raise ValueError("Укажите discord_id или nickname")
+
+        conn = await self.get_connection(db_name)
+        try:
+            if discord_id:
+                return await conn.fetch(
+                    """
+                    SELECT p.last_seen_user_name, pt.tracker,
+                           COALESCE(EXTRACT(EPOCH FROM pt.time_spent), 0)::double precision AS seconds
+                    FROM discord_user du
+                    JOIN player p ON p.user_id = du.user_id
+                    LEFT JOIN play_time pt ON pt.player_id = p.user_id
+                    WHERE du.discord_id = $1
+                    ORDER BY pt.tracker = 'Overall' DESC, pt.time_spent DESC, pt.tracker
+                    """,
+                    discord_id,
+                )
+
+            return await conn.fetch(
+                """
+                SELECT p.last_seen_user_name, pt.tracker,
+                       COALESCE(EXTRACT(EPOCH FROM pt.time_spent), 0)::double precision AS seconds
+                FROM player p
+                LEFT JOIN play_time pt ON pt.player_id = p.user_id
+                WHERE p.last_seen_user_name ILIKE $1
+                ORDER BY pt.tracker = 'Overall' DESC, pt.time_spent DESC, pt.tracker
+                """,
+                nickname,
+            )
         finally:
             await conn.close()
 
@@ -298,8 +342,9 @@ class DatabaseManagerSS14:
                     """, ban_id, admin_guid, unban_time)
 
                 return True, f"✅ Бан {ban_id} снят админом {admin_name}."
-        except Exception as e:
-            return False, f"Ошибка: {e}"
+        except Exception as error:
+            print(f"[Database] unban server={db_name} error={error}")
+            return False, "Не удалось снять бан из-за ошибки БД."
         finally:
             await conn.close()
     
@@ -357,8 +402,9 @@ class DatabaseManagerSS14:
 
                 return True, f"Права были успешно добавлены для {username} в БД {db_name.upper()}"
 
-        except Exception as e:
-            return False, f"Ошибка: {e}"
+        except Exception as error:
+            print(f"[Database] add permission server={db_name} error={error}")
+            return False, "Не удалось добавить права из-за ошибки БД."
         finally:
             await conn.close()
 
@@ -372,8 +418,9 @@ class DatabaseManagerSS14:
 
                 return True, f"Права были успешно сняты для {username} в БД {db_name.upper()}"
 
-        except Exception as e:
-            return False, f"Ошибка: {e}"
+        except Exception as error:
+            print(f"[Database] delete permission server={db_name} error={error}")
+            return False, "Не удалось удалить права из-за ошибки БД."
         finally:
             await conn.close()
         
@@ -391,8 +438,9 @@ class DatabaseManagerSS14:
                 """, title, rank_id, guid)
 
                 return True, f"Права были успешно изменены для {username} в БД {db_name.upper()}"
-        except Exception as e:
-            return False, f"Ошибка: {e}"
+        except Exception as error:
+            print(f"[Database] update permission server={db_name} error={error}")
+            return False, "Не удалось изменить права из-за ошибки БД."
         finally:
             await conn.close()
 
@@ -477,15 +525,7 @@ class DatabaseManagerSS14:
         column_types = {str(row["column_name"]): str(row["data_type"]) for row in columns}
 
         if "expires_at" in column_types and "int" not in column_types["expires_at"].lower():
-            await conn.execute("DROP TABLE IF EXISTS discord_link_code")
-            await conn.execute("""
-                CREATE TABLE discord_link_code (
-                    user_id TEXT PRIMARY KEY,
-                    ckey TEXT NOT NULL,
-                    code TEXT NOT NULL UNIQUE,
-                    expires_at BIGINT NOT NULL
-                )
-            """)
+            raise RuntimeError("discord_link_code.expires_at должен иметь целочисленный тип")
         elif "ckey" not in column_types:
             await conn.execute("ALTER TABLE discord_link_code ADD COLUMN ckey TEXT NOT NULL DEFAULT ''")
 
@@ -493,32 +533,6 @@ class DatabaseManagerSS14:
             CREATE INDEX IF NOT EXISTS ix_discord_link_code_expires_at
             ON discord_link_code (expires_at)
         """)
-
-    async def _find_guid_by_link_code_in_db(self, link_code: str, db_name: str) -> str | None:
-        conn = await self.get_connection(db_name)
-        try:
-            await self._ensure_link_code_table(conn)
-            now_unix = int(datetime.utcnow().timestamp())
-            await conn.execute("DELETE FROM discord_link_code WHERE expires_at <= $1", now_unix)
-            result = await conn.fetchval(
-                "SELECT user_id FROM discord_link_code WHERE code = $1 AND expires_at > $2 LIMIT 1",
-                link_code,
-                now_unix
-            )
-            return str(result) if result else None
-        finally:
-            await conn.close()
-
-    async def _delete_link_code_in_db(self, link_code: str, db_name: str) -> tuple[bool, str]:
-        conn = await self.get_connection(db_name)
-        try:
-            await self._ensure_link_code_table(conn)
-            await conn.execute("DELETE FROM discord_link_code WHERE code = $1", link_code)
-            return True, "deleted"
-        except Exception as e:
-            return False, str(e)
-        finally:
-            await conn.close()
 
     async def _claim_link_code_in_db(
         self,
@@ -552,8 +566,9 @@ class DatabaseManagerSS14:
                     return True, None, None, "not_found"
 
                 return True, str(row["user_id"]), int(row["expires_at"]), "claimed"
-        except Exception as e:
-            return False, None, None, str(e)
+        except Exception as error:
+            print(f"[DiscordLink] claim code server={db_name} error={error}")
+            return False, None, None, "database_error"
         finally:
             if conn:
                 await conn.close()
@@ -587,31 +602,12 @@ class DatabaseManagerSS14:
                     expires_at
                 )
             return True, "restored"
-        except Exception as e:
-            return False, str(e)
+        except Exception as error:
+            print(f"[DiscordLink] restore code server={db_name} error={error}")
+            return False, "database_error"
         finally:
             if conn:
                 await conn.close()
-
-    async def consume_link_code(self, link_code: str, db_name: str = 'astra') -> tuple[bool, str]:
-        code = self._normalize_link_code(link_code)
-        if not LINK_CODE_REGEX.fullmatch(code):
-            return False, "Неверный формат кода."
-
-        target_dbs = self._linked_lookup_order(db_name)
-        if not target_dbs:
-            return False, "Нет настроенных БД для удаления кода."
-
-        errors: list[str] = []
-        for current_db in target_dbs:
-            ok, message = await self._delete_link_code_in_db(code, current_db)
-            if not ok:
-                errors.append(f"{current_db.upper()}: {message}")
-
-        if errors:
-            return False, f"Код удален частично: {'; '.join(errors)}"
-
-        return True, "Код удален."
 
     async def link_user_by_code(
         self,
@@ -654,7 +650,7 @@ class DatabaseManagerSS14:
 
         if not guid:
             if errors:
-                print(f"Ошибка поиска GUID по коду {code}: {'; '.join(errors)}")
+                print(f"[DiscordLink] code lookup failed: {'; '.join(errors)}")
             return False, "Код недействителен или истек."
 
         success, message = await self.link_user(guid, discord_id, source_db or db_name)
@@ -667,7 +663,8 @@ class DatabaseManagerSS14:
                 source_db
             )
             if not restore_ok:
-                message = f"{message} Не удалось восстановить код привязки: {restore_message}."
+                print(f"[DiscordLink] code restore failed: {restore_message}")
+                message = "Привязка не выполнена из-за ошибки БД. Попробуйте позже."
 
         return success, message
 
@@ -683,19 +680,17 @@ class DatabaseManagerSS14:
                 if existing_guid:
                     if str(existing_guid) == str(guid):
                         return True, False, "already_linked"
-                    return False, False, f"discord_id уже привязан к другому GUID ({existing_guid}) в БД {db_name.upper()}"
+                    return False, False, "discord_conflict"
 
-                max_id = await conn.fetchval("SELECT COALESCE(MAX(discord_user_id), 0) FROM discord_user") or 0
-                next_id = max_id + 1
                 await conn.execute(
-                    "INSERT INTO discord_user (discord_user_id, user_id, discord_id) VALUES ($1, $2, $3)",
-                    next_id,
+                    "INSERT INTO discord_user (user_id, discord_id) VALUES ($1, $2)",
                     guid,
                     discord_id
                 )
                 return True, True, "inserted"
-        except Exception as e:
-            return False, False, str(e)
+        except Exception as error:
+            print(f"[DiscordLink] insert server={db_name} error={error}")
+            return False, False, "database_error"
         finally:
             if conn:
                 await conn.close()
@@ -710,8 +705,9 @@ class DatabaseManagerSS14:
                     discord_id
                 )
                 return True, bool(deleted), "deleted" if deleted else "not_found"
-        except Exception as e:
-            return False, False, str(e)
+        except Exception as error:
+            print(f"[DiscordLink] delete server={db_name} error={error}")
+            return False, False, "database_error"
         finally:
             if conn:
                 await conn.close()
@@ -729,8 +725,9 @@ class DatabaseManagerSS14:
                     return True, True, "deleted", str(row["discord_id"])
 
                 return True, False, "not_found", None
-        except Exception as e:
-            return False, False, str(e), None
+        except Exception as error:
+            print(f"[DiscordLink] delete by user server={db_name} error={error}")
+            return False, False, "database_error", None
         finally:
             if conn:
                 await conn.close()
@@ -755,7 +752,11 @@ class DatabaseManagerSS14:
                 if rollback_errors:
                     rollback_suffix = f" Откат выполнен с ошибками: {'; '.join(rollback_errors)}"
 
-                return False, f"Ошибка привязки {current_db.upper()}: {message}.{rollback_suffix}"
+                if message == "discord_conflict":
+                    return False, f"Discord уже привязан к другому аккаунту на {current_db.upper()}."
+                if rollback_suffix:
+                    print(f"[DiscordLink] rollback failed: {rollback_suffix}")
+                return False, "Привязка не выполнена из-за ошибки БД. Попробуйте позже."
 
             if inserted:
                 inserted_dbs.append(current_db)
@@ -783,13 +784,14 @@ class DatabaseManagerSS14:
                 deleted_any = True
 
         if errors and not deleted_any:
-            return False, f"Ошибка отвязки: {'; '.join(errors)}"
+            return False, "Отвязка не выполнена из-за ошибки БД."
 
         if errors and deleted_any:
-            return False, f"Частичная отвязка (есть ошибки): {'; '.join(errors)}"
+            print(f"[DiscordLink] partial unlink: {'; '.join(errors)}")
+            return False, "Аккаунт отвязан не на всех серверах. Обратитесь к администратору."
 
         if deleted_any:
-            return True, f"Аккаунт отвязан."
+            return True, "Аккаунт отвязан."
 
         return False, "Аккаунт не привязан."
 
@@ -839,10 +841,11 @@ class DatabaseManagerSS14:
                     deleted_any = True
 
         if errors and not deleted_any:
-            return False, f"Ошибка отвязки: {'; '.join(errors)}", resolved_discord_id
+            return False, "Отвязка не выполнена из-за ошибки БД.", resolved_discord_id
 
         if errors and deleted_any:
-            return False, f"Частичная отвязка (есть ошибки): {'; '.join(errors)}", resolved_discord_id
+            print(f"[DiscordLink] partial global unlink: {'; '.join(errors)}")
+            return False, "Аккаунт отвязан не на всех серверах.", resolved_discord_id
 
         if deleted_any:
             return True, "Аккаунт отвязан.", resolved_discord_id
@@ -852,13 +855,21 @@ class DatabaseManagerSS14:
     async def get_logs_by_round(self, username: str, round_id: int, db_name: str = 'astra'):
         conn = await self.get_connection(db_name)
         try:
-            keywords = ["used placement system to create", "Дебаг", "Админ", "was respawned", "Трюки", "Покарать"]
-
             like_username = f"%{username}%"
-            or_conditions = " OR ".join(f"message ILIKE '%{kw}%'" for kw in keywords)
-            query = f"SELECT message FROM admin_log WHERE round_id = $1 AND message ILIKE $2 AND ({or_conditions})"
-            
-            results = await conn.fetch(query, round_id, like_username)
+            keyword_patterns = [
+                "%used placement system to create%",
+                "%Дебаг%",
+                "%Админ%",
+                "%was respawned%",
+                "%Трюки%",
+                "%Покарать%",
+            ]
+            results = await conn.fetch(
+                "SELECT message FROM admin_log WHERE round_id = $1 AND message ILIKE $2 AND message ILIKE ANY($3::text[])",
+                round_id,
+                like_username,
+                keyword_patterns,
+            )
             return results
         finally:
             await conn.close()

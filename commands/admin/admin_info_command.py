@@ -5,28 +5,25 @@ from disnake.ext.commands import has_any_role
 from bot_init import bot
 from dataConfig import DEFAULT_SERVER_NAME, ROLE_ACCESS_MODERATORS, ROLE_ACCESS_EVENTOLOGY, build_admin_headers, build_admin_url
 from server_utils import resolve_server_for_command
-from template_embed import embed_admin_info
 
 
 def add_chunked_fields(embed, name, value, max_length=1024, inline=False):
     """Разбивает длинное значение на несколько полей."""
-    if len(value) <= max_length:
-        embed.add_field(name=name, value=value, inline=inline)
-        return
-
-    chunks, chunk = [], ""
-    lines = value.split("\n")
-    for line in lines:
-        if len(chunk) + len(line) + 1 > max_length:
-            chunks.append(chunk.strip())
-            chunk = line
-        else:
-            chunk += f"\n{line}" if chunk else line
-
-    if chunk:
-        chunks.append(chunk.strip())
+    chunks = []
+    remaining = value
+    while remaining:
+        if len(remaining) <= max_length:
+            chunks.append(remaining)
+            break
+        split_at = remaining.rfind("\n", 0, max_length + 1)
+        if split_at <= 0:
+            split_at = max_length
+        chunks.append(remaining[:split_at].strip())
+        remaining = remaining[split_at:].lstrip()
 
     for i, value_chunk in enumerate(chunks):
+        if len(embed.fields) >= 25:
+            return
         field_name = name if i == 0 else f"{name} (часть {i + 1})"
         embed.add_field(name=field_name, value=value_chunk, inline=inline)
 
@@ -53,25 +50,42 @@ async def admin_info_command(ctx, server: str = DEFAULT_SERVER_NAME):
         return
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
             async with session.get(url, headers=headers) as resp:
                 if resp.status != 200:
                     await ctx.send(f"Ошибка: код {resp.status}")
                     return
 
                 data = await resp.json()
-                embed = Embed(title=embed_admin_info["title"], color=embed_admin_info["color"])
-                for field in embed_admin_info["fields"]:
-                    try:
-                        value = eval(field["value"])
-                        if field["name"] in ["Игроки", "Деадмины", "Правила игры"]:
-                            add_chunked_fields(embed, field["name"], value, inline=field["inline"])
-                        else:
-                            embed.add_field(name=field["name"], value=value, inline=field["inline"])
-                    except Exception:
-                        embed.add_field(name=field["name"], value="Ошибка", inline=field["inline"])
+                players = data.get("Players", [])
+                values = {
+                    "ID раунда": str(data.get("RoundId", "Не задано")),
+                    "Карта": str((data.get("Map") or {}).get("Name", "Не задано")),
+                    "MOTD": str(data.get("MOTD", "Нет сообщения")),
+                    "Режим": str(data.get("GamePreset", "Не задано")),
+                    "Игроки": "\n".join(
+                        f"{p.get('Name', '?')} - {'Админ' if p.get('IsAdmin') else 'Игрок'} ({p.get('PingUser', '?')} ms)"
+                        for p in players if not p.get("IsDeadminned")
+                    ) or "Нет игроков",
+                    "Деадмины": "\n".join(
+                        f"{p.get('Name', '?')} ({p.get('PingUser', '?')} ms)"
+                        for p in players if p.get("IsDeadminned")
+                    ) or "Нет",
+                    "Активные админы": "\n".join(
+                        str(p.get("Name", "?"))
+                        for p in players if p.get("IsAdmin") and not p.get("IsDeadminned")
+                    ) or "Нет",
+                    "Правила игры": "\n".join(map(str, data.get("GameRules", []))) or "Нет правил",
+                    "Паник-бункер": "\n".join(
+                        f"{key}: {value}" for key, value in data.get("PanicBunker", {}).items() if value is not None
+                    ) or "Не активирован",
+                }
+                embed = Embed(title="Информация о сервере SS14", color=0x3498DB)
+                for name, value in values.items():
+                    add_chunked_fields(embed, name, value)
 
-                embed.set_footer(text=f"Сервер: {server_name}")
+                embed.set_footer(text=f"Сервер: {server_name.upper()}")
                 await ctx.send(embed=embed)
-    except Exception as e:
-        await ctx.send(f"Ошибка: {e}")
+    except Exception as error:
+        print(f"[AdminInfo] server={server_name} error={error}")
+        await ctx.send("Admin API недоступен. Попробуйте позже.")

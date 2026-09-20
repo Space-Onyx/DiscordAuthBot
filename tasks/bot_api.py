@@ -1,7 +1,9 @@
 ﻿import asyncio
+import hashlib
 import hmac
 import time
 from collections import deque
+from uuid import UUID
 from aiohttp import web
 
 import disnake
@@ -20,6 +22,8 @@ _RATE_LIMIT_WINDOW = 60.0
 _RATE_LIMIT_MAX = 20
 _LOG_THROTTLE_SECONDS = 30.0
 _CONCURRENCY_LIMIT = 10
+_AHELP_STATE_LIMIT = 1000
+_AHELP_CONVERSATIONS_LIMIT = 100
 
 _rate_limit_ip: dict[str, deque[float]] = {}
 _log_last: dict[str, float] = {}
@@ -59,6 +63,10 @@ def _check_rate_limit(bucket: dict[str, deque[float]], key: str) -> bool:
         bucket[key] = dq
     while dq and dq[0] < window_start:
         dq.popleft()
+    if len(bucket) > 10000:
+        for stale_key, values in list(bucket.items()):
+            if not values or values[-1] < window_start:
+                bucket.pop(stale_key, None)
     if len(dq) >= _RATE_LIMIT_MAX:
         return False
     dq.append(now)
@@ -75,6 +83,7 @@ async def _discord_unlink_handler(request: web.Request) -> web.Response:
         ip = request.remote or "unknown"
         if not _check_rate_limit(_rate_limit_ip, ip):
             _log_throttled("rate_limit_ip", f"[DiscordAuthApi] Rate limit exceeded for IP {ip}")
+            return web.json_response(_build_json(False, "Слишком много запросов."), status=429)
         return web.json_response(_build_json(False, "Неверный токен авторизации."), status=401)
 
     ip = request.remote or "unknown"
@@ -85,8 +94,10 @@ async def _discord_unlink_handler(request: web.Request) -> web.Response:
     async with _semaphore:
         try:
             payload = await request.json()
-        except Exception as e:
-            return web.json_response(_build_json(False, f"Некорректный JSON: {e}"), status=400)
+        except Exception:
+            return web.json_response(_build_json(False, "Некорректный JSON."), status=400)
+        if not isinstance(payload, dict):
+            return web.json_response(_build_json(False, "Ожидается JSON-объект."), status=400)
 
         user_id = str(payload.get("user_id") or "").strip()
         discord_id = str(payload.get("discord_id") or "").strip()
@@ -96,11 +107,22 @@ async def _discord_unlink_handler(request: web.Request) -> web.Response:
                 _build_json(False, "Не указан user_id или discord_id."),
                 status=400,
             )
+        try:
+            if user_id:
+                UUID(user_id)
+        except ValueError:
+            return web.json_response(_build_json(False, "Некорректный user_id."), status=400)
+        if discord_id and (not discord_id.isdigit() or len(discord_id) > 20):
+            return web.json_response(_build_json(False, "Некорректный идентификатор."), status=400)
 
-        success, message, resolved_discord_id = await ss14_db.unlink_user_global(
-            user_id=user_id or None,
-            discord_id=discord_id or None,
-        )
+        try:
+            success, message, resolved_discord_id = await ss14_db.unlink_user_global(
+                user_id=user_id or None,
+                discord_id=discord_id or None,
+            )
+        except Exception as error:
+            print(f"[DiscordAuthApi] unlink error={error}")
+            return web.json_response(_build_json(False, "БД временно недоступна."), status=503)
 
         if success and resolved_discord_id:
             await set_linked_role_for_discord_id(resolved_discord_id, False)
@@ -112,7 +134,7 @@ async def _discord_unlink_handler(request: web.Request) -> web.Response:
         )
 
 
-# Состояние опубликованных ахелп-обращений: (server_name, conversation_id) -> message_id/transcript.
+# Состояние опубликованных ахелп-обращений: message ID и хеш текста.
 _ahelp_messages: dict[tuple[str, str], dict] = {}
 
 _ROUND_EVENT_TYPES = ("lobby", "started", "ended")
@@ -135,6 +157,7 @@ def _check_bot_api_access(request: web.Request) -> web.Response | None:
         ip = request.remote or "unknown"
         if not _check_rate_limit(_rate_limit_ip, ip):
             _log_throttled("rate_limit_ip", f"[DiscordAuthApi] Rate limit exceeded for IP {ip}")
+            return web.json_response({"ok": False, "message": "Слишком много запросов."}, status=429)
         return web.json_response({"ok": False, "message": "Неверный токен авторизации."}, status=401)
 
     ip = request.remote or "unknown"
@@ -160,8 +183,10 @@ async def _round_event_handler(request: web.Request) -> web.Response:
     async with _semaphore:
         try:
             payload = await request.json()
-        except Exception as e:
-            return web.json_response({"ok": False, "message": f"Некорректный JSON: {e}"}, status=400)
+        except Exception:
+            return web.json_response({"ok": False, "message": "Некорректный JSON."}, status=400)
+        if not isinstance(payload, dict):
+            return web.json_response({"ok": False, "message": "Ожидается JSON-объект."}, status=400)
 
         event_type = str(payload.get("type") or "")
         if event_type not in _ROUND_EVENT_TYPES:
@@ -181,8 +206,9 @@ async def _round_event_handler(request: web.Request) -> web.Response:
 
         try:
             channel = await _resolve_notify_channel(channel_id)
-        except Exception as e:
-            return web.json_response({"ok": False, "message": f"Канал недоступен: {e}"}, status=404)
+        except Exception as error:
+            print(f"[RoundNotify] channel={channel_id} error={error}")
+            return web.json_response({"ok": False, "message": "Канал недоступен."}, status=404)
 
         embed = build_round_embed(payload, get_server_label(server, payload.get("serverName")))
         # Пинг роли всегда вне embed. Пингуем только о конце раунда, как раньше через вебхуки.
@@ -190,8 +216,9 @@ async def _round_event_handler(request: web.Request) -> web.Response:
 
         try:
             await channel.send(content=content, embed=embed)
-        except Exception as e:
-            return web.json_response({"ok": False, "message": f"Не удалось отправить уведомление: {e}"}, status=502)
+        except Exception as error:
+            print(f"[RoundNotify] channel={channel_id} send error={error}")
+            return web.json_response({"ok": False, "message": "Не удалось отправить уведомление."}, status=502)
 
         return web.json_response({"ok": True, "message": "ok"})
 
@@ -204,8 +231,10 @@ async def _ahelp_event_handler(request: web.Request) -> web.Response:
     async with _semaphore:
         try:
             payload = await request.json()
-        except Exception as e:
-            return web.json_response({"ok": False, "message": f"Некорректный JSON: {e}"}, status=400)
+        except Exception:
+            return web.json_response({"ok": False, "message": "Некорректный JSON."}, status=400)
+        if not isinstance(payload, dict):
+            return web.json_response({"ok": False, "message": "Ожидается JSON-объект."}, status=400)
 
         target = get_ahelp_notify_target(payload.get("serverName"))
         if target is None:
@@ -218,8 +247,9 @@ async def _ahelp_event_handler(request: web.Request) -> web.Response:
 
         try:
             channel = await _resolve_notify_channel(channel_id)
-        except Exception as e:
-            return web.json_response({"ok": False, "message": f"Канал недоступен: {e}"}, status=404)
+        except Exception as error:
+            print(f"[AHelpNotify] channel={channel_id} error={error}")
+            return web.json_response({"ok": False, "message": "Канал недоступен."}, status=404)
 
         server_label = get_server_label(server, payload.get("serverName"))
         round_id = payload.get("roundId", "—")
@@ -227,6 +257,8 @@ async def _ahelp_event_handler(request: web.Request) -> web.Response:
         conversations = payload.get("conversations") or []
         if not isinstance(conversations, list):
             return web.json_response({"ok": False, "message": "Поле conversations должно быть списком."}, status=400)
+        if len(conversations) > _AHELP_CONVERSATIONS_LIMIT:
+            return web.json_response({"ok": False, "message": "Слишком много обращений в одном запросе."}, status=400)
 
         created = 0
         updated = 0
@@ -238,7 +270,8 @@ async def _ahelp_event_handler(request: web.Request) -> web.Response:
                 continue
 
             key = (server.get("name", "?"), conversation_id)
-            transcript = conversation.get("transcript") or ""
+            transcript = str(conversation.get("transcript") or "")
+            transcript_hash = hashlib.sha256(transcript.encode("utf-8")).digest()
             state = _ahelp_messages.get(key)
             embed = build_ahelp_embed(conversation, server_label, round_id, run_level)
 
@@ -250,19 +283,22 @@ async def _ahelp_event_handler(request: web.Request) -> web.Response:
                         message = await channel.send(embed=embed)
                     else:
                         message = await channel.send(content=ping_content, embed=embed)
-                    _ahelp_messages[key] = {"message_id": message.id, "transcript": transcript}
+                    if len(_ahelp_messages) >= _AHELP_STATE_LIMIT:
+                        _ahelp_messages.pop(next(iter(_ahelp_messages)))
+                    _ahelp_messages[key] = {"message_id": message.id, "transcript_hash": transcript_hash}
                     created += 1
-                elif state.get("transcript") != transcript:
+                elif state.get("transcript_hash") != transcript_hash:
                     try:
                         message = await channel.fetch_message(state["message_id"])
                         await message.edit(embed=embed)
                     except disnake.HTTPException:
                         message = await channel.send(embed=embed)
                         state["message_id"] = message.id
-                    state["transcript"] = transcript
+                    state["transcript_hash"] = transcript_hash
                     updated += 1
-            except Exception as e:
-                return web.json_response({"ok": False, "message": f"Не удалось отправить уведомление: {e}"}, status=502)
+            except Exception as error:
+                print(f"[AHelpNotify] channel={channel_id} conversation={conversation_id} error={error}")
+                return web.json_response({"ok": False, "message": "Не удалось отправить уведомление."}, status=502)
 
         return web.json_response({"ok": True, "message": "ok", "created": created, "updated": updated})
 
@@ -275,8 +311,10 @@ async def _ban_event_handler(request: web.Request) -> web.Response:
     async with _semaphore:
         try:
             payload = await request.json()
-        except Exception as e:
-            return web.json_response({"ok": False, "message": f"Некорректный JSON: {e}"}, status=400)
+        except Exception:
+            return web.json_response({"ok": False, "message": "Некорректный JSON."}, status=400)
+        if not isinstance(payload, dict):
+            return web.json_response({"ok": False, "message": "Ожидается JSON-объект."}, status=400)
 
         if str(payload.get("type") or "") != "ban":
             return web.json_response({"ok": False, "message": "Неизвестный тип события."}, status=400)
@@ -292,15 +330,17 @@ async def _ban_event_handler(request: web.Request) -> web.Response:
 
         try:
             channel = await _resolve_notify_channel(channel_id)
-        except Exception as e:
-            return web.json_response({"ok": False, "message": f"Канал недоступен: {e}"}, status=404)
+        except Exception as error:
+            print(f"[BanNotify] channel={channel_id} error={error}")
+            return web.json_response({"ok": False, "message": "Канал недоступен."}, status=404)
 
         embed = build_ban_embed(payload, get_server_label(server, payload.get("serverName")))
 
         try:
             await channel.send(embed=embed)
-        except Exception as e:
-            return web.json_response({"ok": False, "message": f"Не удалось отправить уведомление: {e}"}, status=502)
+        except Exception as error:
+            print(f"[BanNotify] channel={channel_id} send error={error}")
+            return web.json_response({"ok": False, "message": "Не удалось отправить уведомление."}, status=502)
 
         return web.json_response({"ok": True, "message": "ok"})
 
@@ -315,7 +355,7 @@ async def ensure_bot_api_started() -> bool:
         print("[DiscordAuthApi] BOT_API_TOKEN не задан. API глобальной отвязки не запущен.")
         return False
 
-    app = web.Application()
+    app = web.Application(client_max_size=256 * 1024)
     app.router.add_post("/api/v1/discord/unlink", _discord_unlink_handler)
     app.router.add_post("/api/v1/round/event", _round_event_handler)
     app.router.add_post("/api/v1/ahelp/event", _ahelp_event_handler)

@@ -12,7 +12,7 @@ from server_utils import resolve_server_for_command
 async def get_creation_date(uuid: str):
     url = f"https://auth.spacestation14.com/api/query/userid?userid={uuid}"
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
             async with session.get(url) as resp:
                 if resp.status == 200:
                     data = await resp.json()
@@ -23,8 +23,9 @@ async def get_creation_date(uuid: str):
                         return f"<t:{unix}:f>"
                     return "Дата не найдена"
                 return f"Ошибка: код {resp.status}"
-    except Exception as e:
-        return f"Ошибка: {e}"
+    except Exception as error:
+        print(f"[SS14Auth] user={uuid} error={error}")
+        return "Сервис авторизации недоступен"
 
 
 @has_any_role(*ROLE_ACCESS_MODERATORS)
