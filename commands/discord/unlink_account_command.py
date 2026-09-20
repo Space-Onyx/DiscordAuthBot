@@ -24,7 +24,7 @@ async def unlink_account_command(ctx, discord_id: str = None):
         success, message = await ss14_db.unlink_user(discord_id)
     except Exception as error:
         print(f"[DiscordAuth] manual unlink user={discord_id} error={error}")
-        await ctx.send("Отвязка временно недоступна. Попробуйте позже.")
+        await ctx.send("Отвязка недоступна.")
         return
     if success:
         await set_linked_role_for_discord_id(discord_id, False)

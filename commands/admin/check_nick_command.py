@@ -23,7 +23,7 @@ async def get_creation_date(uuid: str):
                         unix = int(date_obj.timestamp())
                         return f"<t:{unix}:f>"
                     return "Дата не найдена"
-                return f"Ошибка: код {resp.status}"
+                return f"Auth API: {resp.status}"
     except Exception as error:
         print(f"[SS14Auth] user={uuid} error={error}")
         return "Сервис авторизации недоступен"

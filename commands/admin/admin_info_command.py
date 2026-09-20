@@ -39,7 +39,7 @@ async def admin_info_command(ctx, server: str = DEFAULT_SERVER_NAME):
 
     url = build_admin_url("/admin/info", server_name)
     if not url:
-        await ctx.send("Не удалось сформировать URL admin API.")
+        await ctx.send("Admin API не настроен.")
         return
 
     headers = build_admin_headers(server_name)
@@ -54,7 +54,7 @@ async def admin_info_command(ctx, server: str = DEFAULT_SERVER_NAME):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
             async with session.get(url, headers=headers) as resp:
                 if resp.status != 200:
-                    await ctx.send(f"Ошибка: код {resp.status}")
+                    await ctx.send(f"Admin API вернул код {resp.status}.")
                     return
 
                 data = await resp.json()
@@ -88,4 +88,4 @@ async def admin_info_command(ctx, server: str = DEFAULT_SERVER_NAME):
                 await ctx.send(embed=embed)
     except Exception as error:
         print(f"[AdminInfo] server={server_name} error={error}")
-        await ctx.send("Admin API недоступен. Попробуйте позже.")
+        await ctx.send("Admin API недоступен.")

@@ -25,7 +25,7 @@ async def restart_command(ctx, server: str = DEFAULT_SERVER_NAME):
     headers = build_post_headers(server_name, data)
 
     if not url or data is None or headers is None:
-        await ctx.send("Не удалось сформировать запрос рестарта.")
+        await ctx.send("Рестарт не настроен.")
         return
 
     await ctx.send(f"Запущен рестарт {server_name.upper()} сервера...")
@@ -34,9 +34,9 @@ async def restart_command(ctx, server: str = DEFAULT_SERVER_NAME):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
             async with session.post(url, data=data, headers=headers) as resp:
                 if resp.status == 200:
-                    await ctx.send(f"✅ Рестарт {server_name.upper()} выполнен.")
+                    await ctx.send(f"✅ {server_name.upper()} перезапущен.")
                 else:
-                    await ctx.send(f"Ошибка: код {resp.status}")
+                    await ctx.send(f"Watchdog вернул код {resp.status}.")
     except Exception as error:
         print(f"[Restart] server={server_name} error={error}")
-        await ctx.send("Watchdog недоступен. Попробуйте позже.")
+        await ctx.send("Watchdog недоступен.")

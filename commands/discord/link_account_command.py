@@ -12,7 +12,7 @@ async def link_command(ctx, ckey: str, link_code: str, ds_id: str = None):
     try:
         await ctx.message.delete()
     except disnake.HTTPException:
-        await ctx.send("Не удалось безопасно удалить сообщение с кодом. Используйте кнопку привязки.")
+        await ctx.send("Не удалось удалить код. Используйте кнопку привязки.")
         return
 
     discord_id = str(ctx.author.id) if ds_id is None else str(ds_id).strip()
@@ -24,7 +24,7 @@ async def link_command(ctx, ckey: str, link_code: str, ds_id: str = None):
         success, message = await ss14_db.link_user_by_code(ckey, link_code, discord_id)
     except Exception as error:
         print(f"[DiscordAuth] manual link user={discord_id} error={error}")
-        await ctx.send("Привязка временно недоступна. Попробуйте позже.")
+        await ctx.send("Привязка недоступна.")
         return
     if success:
         await set_linked_role_for_discord_id(discord_id, True)

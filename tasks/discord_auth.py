@@ -219,14 +219,14 @@ class NicknameModal(disnake.ui.Modal):
         now = time.monotonic()
         retry_after = _LINK_ATTEMPT_COOLDOWN - (now - _link_attempts.get(inter.author.id, 0.0))
         if retry_after > 0:
-            await inter.send(f"Слишком часто. Повторите через {retry_after:.1f} сек.", ephemeral=True)
+            await inter.send(f"Повторите через {retry_after:.1f} сек.", ephemeral=True)
             return
         _link_attempts[inter.author.id] = now
 
         if not ckey or not link_code:
-            await inter.send("❌ cKey и код не могут быть пустыми.", ephemeral=True)
+            await inter.send("Укажите cKey и код.", ephemeral=True)
             await _safe_send_tech_log(
-                f"⚠️ Пользователь {inter.author.name} ({discord_id}) не заполнил cKey или код."
+                f"⚠️ Пользователь {inter.author.name} ({discord_id}) не указал cKey или код."
             )
             return
 
@@ -234,7 +234,7 @@ class NicknameModal(disnake.ui.Modal):
             success, message = await ss14_db.link_user_by_code(ckey, link_code, discord_id)
         except Exception as error:
             print(f"[DiscordAuth] link user={discord_id} error={error}")
-            await inter.send("Привязка временно недоступна. Попробуйте позже.", ephemeral=True)
+            await inter.send("Привязка недоступна.", ephemeral=True)
             return
         await inter.send(message, ephemeral=True)
 

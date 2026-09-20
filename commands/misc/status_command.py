@@ -17,14 +17,14 @@ async def status_command(ctx, server: str = DEFAULT_SERVER_NAME):
 
     url = build_status_url(server_name)
     if not url:
-        await ctx.send("Не удалось сформировать URL статуса для выбранного сервера.")
+        await ctx.send("URL статуса не настроен.")
         return
 
     try:
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
-                    await ctx.send(f"Ошибка: код {resp.status}")
+                    await ctx.send(f"Сервер вернул код {resp.status}.")
                     return
 
                 data = await resp.json()
@@ -34,4 +34,4 @@ async def status_command(ctx, server: str = DEFAULT_SERVER_NAME):
                 await ctx.send(embed=embed)
     except Exception as error:
         print(f"[Status] server={server_name} error={error}")
-        await ctx.send("Сервер статуса недоступен. Попробуйте позже.")
+        await ctx.send("Статус недоступен.")

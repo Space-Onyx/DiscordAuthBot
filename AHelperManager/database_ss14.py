@@ -316,7 +316,7 @@ class DatabaseManagerSS14:
                     exists = await conn.fetchval("SELECT 1 FROM ban WHERE ban_id = $1 AND type = 0", ban_id)
 
                 if not exists:
-                    return False, f"❌ Бан {ban_id} не существует."
+                    return False, f"❌ Бан {ban_id} не найден."
 
                 if has_server_ban:
                     already_unbanned = await conn.fetchval("SELECT 1 FROM server_unban WHERE ban_id = $1", ban_id)
@@ -328,7 +328,7 @@ class DatabaseManagerSS14:
 
                 admin_name = await self.get_admin_name(admin_guid, db_name)
                 if not admin_name:
-                    return False, f"❌ При попытке найти имя админа в БД произошла ошибка: Админ с GUID {admin_guid} не найден."
+                    return False, "Администратор не найден."
 
                 if has_server_ban:
                     await conn.execute("""
@@ -341,10 +341,10 @@ class DatabaseManagerSS14:
                         VALUES ($1, $2, $3::timestamptz)
                     """, ban_id, admin_guid, unban_time)
 
-                return True, f"✅ Бан {ban_id} снят админом {admin_name}."
+                return True, f"✅ Бан {ban_id} снял {admin_name}."
         except Exception as error:
             print(f"[Database] unban server={db_name} error={error}")
-            return False, "Не удалось снять бан из-за ошибки БД."
+            return False, "БД недоступна."
         finally:
             await conn.close()
     
@@ -404,7 +404,7 @@ class DatabaseManagerSS14:
 
         except Exception as error:
             print(f"[Database] add permission server={db_name} error={error}")
-            return False, "Не удалось добавить права из-за ошибки БД."
+            return False, "БД недоступна."
         finally:
             await conn.close()
 
@@ -420,7 +420,7 @@ class DatabaseManagerSS14:
 
         except Exception as error:
             print(f"[Database] delete permission server={db_name} error={error}")
-            return False, "Не удалось удалить права из-за ошибки БД."
+            return False, "БД недоступна."
         finally:
             await conn.close()
         
@@ -440,7 +440,7 @@ class DatabaseManagerSS14:
                 return True, f"Права были успешно изменены для {username} в БД {db_name.upper()}"
         except Exception as error:
             print(f"[Database] update permission server={db_name} error={error}")
-            return False, "Не удалось изменить права из-за ошибки БД."
+            return False, "БД недоступна."
         finally:
             await conn.close()
 
@@ -619,9 +619,9 @@ class DatabaseManagerSS14:
         normalized_ckey = self._normalize_ckey(ckey)
         code = self._normalize_link_code(link_code)
         if not normalized_ckey:
-            return False, "cKey не может быть пустым."
+            return False, "Укажите cKey."
         if not LINK_CODE_REGEX.fullmatch(code):
-            return False, "Неверный формат кода. Ожидается 12 HEX-символов."
+            return False, "Код должен содержать 12 HEX-символов."
 
         target_dbs = self._linked_lookup_order(db_name)
         if not target_dbs:
@@ -664,7 +664,7 @@ class DatabaseManagerSS14:
             )
             if not restore_ok:
                 print(f"[DiscordLink] code restore failed: {restore_message}")
-                message = "Привязка не выполнена из-за ошибки БД. Попробуйте позже."
+                message = "Привязка недоступна."
 
         return success, message
 
@@ -756,7 +756,7 @@ class DatabaseManagerSS14:
                     return False, f"Discord уже привязан к другому аккаунту на {current_db.upper()}."
                 if rollback_suffix:
                     print(f"[DiscordLink] rollback failed: {rollback_suffix}")
-                return False, "Привязка не выполнена из-за ошибки БД. Попробуйте позже."
+                return False, "Привязка недоступна."
 
             if inserted:
                 inserted_dbs.append(current_db)
@@ -764,7 +764,7 @@ class DatabaseManagerSS14:
                 already_linked_dbs.append(current_db)
 
         if not inserted_dbs and len(already_linked_dbs) == len(target_dbs):
-            return False, "Аккаунт уже привязан во всех доступных БД."
+            return False, "Аккаунт уже привязан."
 
         return True, "Аккаунт привязан."
 
@@ -784,11 +784,11 @@ class DatabaseManagerSS14:
                 deleted_any = True
 
         if errors and not deleted_any:
-            return False, "Отвязка не выполнена из-за ошибки БД."
+            return False, "Отвязка недоступна."
 
         if errors and deleted_any:
             print(f"[DiscordLink] partial unlink: {'; '.join(errors)}")
-            return False, "Аккаунт отвязан не на всех серверах. Обратитесь к администратору."
+            return False, "Аккаунт отвязан частично. Обратитесь к администратору."
 
         if deleted_any:
             return True, "Аккаунт отвязан."
@@ -841,11 +841,11 @@ class DatabaseManagerSS14:
                     deleted_any = True
 
         if errors and not deleted_any:
-            return False, "Отвязка не выполнена из-за ошибки БД.", resolved_discord_id
+            return False, "Отвязка недоступна.", resolved_discord_id
 
         if errors and deleted_any:
             print(f"[DiscordLink] partial global unlink: {'; '.join(errors)}")
-            return False, "Аккаунт отвязан не на всех серверах.", resolved_discord_id
+            return False, "Аккаунт отвязан частично.", resolved_discord_id
 
         if deleted_any:
             return True, "Аккаунт отвязан.", resolved_discord_id

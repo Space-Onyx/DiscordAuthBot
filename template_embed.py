@@ -31,7 +31,7 @@ embed_log = {
 embed_admin_help = {
     "title": "Панель команд",
     "color": COLOR_DANGER,
-    "description": "Административные команды используют префикс `&`.",
+    "description": "Префикс команд: `&`",
     "fields": [
         {"name": "Права", "value": '`&admin <ник>` — проверить права\n`&list_permission [сервер]` — доступные ранги\n`&add_permission <ник> "<титул>" "<ранг>" [сервер]`\n`&tweak_permission <ник> "<титул>" "<ранг>" [сервер]`\n`&del_permission <ник> [сервер]`', "inline": False},
         {"name": "Игроки", "value": '`&playtime [ник|@пользователь] [--server имя]`\n`&check_nick <ник> [сервер]` — связанные аккаунты\n`&get_ckey <Discord ID>` — игровая привязка\n`&notelist <ник> [сервер]` — заметки\n`&banlist <ник> [сервер]` — история банов\n`&logs <ник> <раунд> [сервер]` — админ-логи', "inline": False},
@@ -48,7 +48,7 @@ embed_list_permission = {
 
 embed_discord_link = {
     "title": "Связать аккаунт SS14",
-    "description": "Нажмите кнопку ниже и укажите cKey вместе с 12-значным временным кодом.",
+    "description": "Нажмите кнопку и укажите cKey и 12-значный код.",
     "color": COLOR_PRIMARY,
 }
 

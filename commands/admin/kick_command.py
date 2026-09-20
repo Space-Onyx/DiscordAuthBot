@@ -30,22 +30,22 @@ async def kick_command(ctx, nickname: str, *args: str):
 
     admin_guid = await ss14_db.get_player_guid_by_discord_id(discord_id, server_name)
     if not admin_guid:
-        await ctx.send("⚠️ Ваш GUID не найден в БД. Сначала привяжите аккаунт Discord.")
+        await ctx.send("Привяжите аккаунт Discord.")
         return
 
     admin_name = await ss14_db.get_admin_name(admin_guid, server_name)
     if not admin_name:
-        await ctx.send("⚠️ Ваш аккаунт SS14 не найден в БД выбранного сервера.")
+        await ctx.send("Ваш аккаунт SS14 не найден на этом сервере.")
         return
 
     player_guid = await ss14_db.get_player_guid(nickname, server_name)
     if not player_guid:
-        await ctx.send("❌ Игрок не найден в БД выбранного сервера.")
+        await ctx.send("Игрок не найден на этом сервере.")
         return
 
     url = build_admin_url("/admin/actions/kick", server_name)
     if not url:
-        await ctx.send("Не удалось сформировать URL admin API.")
+        await ctx.send("Admin API не настроен.")
         return
 
     post_data = {"Guid": str(player_guid), "Reason": reason}
@@ -63,9 +63,9 @@ async def kick_command(ctx, nickname: str, *args: str):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
             async with session.post(url, headers=headers, json=post_data) as resp:
                 if resp.status == 200:
-                    await ctx.send(f"✅ Кик выполнен. Сервер: {server_name}.")
+                    await ctx.send(f"✅ Игрок исключён · {server_name.upper()}.")
                 else:
-                    await ctx.send(f"Ошибка: код {resp.status}")
+                    await ctx.send(f"Admin API вернул код {resp.status}.")
     except Exception as error:
         print(f"[Kick] server={server_name} target={nickname} error={error}")
-        await ctx.send("Admin API недоступен. Попробуйте позже.")
+        await ctx.send("Admin API недоступен.")

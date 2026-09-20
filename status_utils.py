@@ -37,7 +37,7 @@ def compute_round_length_text(round_start_time: str | None) -> str:
 
 
 def build_status_embed(data: dict, status_text: str, round_length_text: str) -> Embed:
-    title = f"`{str(data.get('name') or 'Без названия')[:254]}`"
+    title = str(data.get("name") or "Без названия")[:256]
     values = {
         "online": f"{data.get('players', 0)}/{data.get('soft_max_players', 0)}",
         "map": data.get("map", "Неизвестно"),
@@ -45,7 +45,7 @@ def build_status_embed(data: dict, status_text: str, round_length_text: str) -> 
         "status": status_text,
         "duration": round_length_text,
         "round_id": data.get("round_id", "—"),
-        "bunker": "Включен" if data.get("panic_bunker") else "Выключен",
+        "bunker": "Включён" if data.get("panic_bunker") else "Выключен",
     }
 
     color = {

@@ -122,7 +122,7 @@ async def _discord_unlink_handler(request: web.Request) -> web.Response:
             )
         except Exception as error:
             print(f"[DiscordAuthApi] unlink error={error}")
-            return web.json_response(_build_json(False, "БД временно недоступна."), status=503)
+            return web.json_response(_build_json(False, "БД недоступна."), status=503)
 
         if success and resolved_discord_id:
             await set_linked_role_for_discord_id(resolved_discord_id, False)

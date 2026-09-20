@@ -22,7 +22,7 @@ async def update_command(ctx, server: str = DEFAULT_SERVER_NAME):
         return
 
     if not get_server(server_name):
-        await ctx.send("Не удалось получить конфиг сервера.")
+        await ctx.send("Сервер не настроен.")
         return
 
     url = build_update_url(server_name)
@@ -30,7 +30,7 @@ async def update_command(ctx, server: str = DEFAULT_SERVER_NAME):
     headers = build_post_headers(server_name, data)
 
     if not url or data is None or headers is None:
-        await ctx.send("Не удалось сформировать запрос обновления.")
+        await ctx.send("Обновление не настроено.")
         return
 
     await ctx.send(f"Запуск обновления {server_name.upper()}...")
@@ -44,4 +44,4 @@ async def update_command(ctx, server: str = DEFAULT_SERVER_NAME):
                     await ctx.send(f"Watchdog отклонил обновление {server_name.upper()}: код {resp.status}.")
     except Exception as error:
         print(f"[Update] server={server_name} error={error}")
-        await ctx.send("Watchdog недоступен. Попробуйте позже.")
+        await ctx.send("Watchdog недоступен.")

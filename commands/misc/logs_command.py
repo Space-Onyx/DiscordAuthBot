@@ -30,4 +30,4 @@ async def logs_command(ctx, username: str, round_id: int, db_name: str = DEFAULT
             await ctx.send(chunk)
     except Exception as error:
         print(f"[Logs] server={db_name} user={username} round={round_id} error={error}")
-        await ctx.send("Не удалось получить логи. Попробуйте позже.")
+        await ctx.send("Логи недоступны.")

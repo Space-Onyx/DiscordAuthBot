@@ -15,7 +15,7 @@ async def bunker_command(ctx, switch: str, server: str = DEFAULT_SERVER_NAME):
         return
 
     if switch.lower() not in ["on", "off"]:
-        await ctx.send("Используйте 'on' или 'off'.")
+        await ctx.send("Укажите `on` или `off`.")
         return
 
     bunker_bool = switch.lower() == "on"
@@ -23,7 +23,7 @@ async def bunker_command(ctx, switch: str, server: str = DEFAULT_SERVER_NAME):
 
     url = build_admin_url("/admin/actions/panic_bunker", server_name)
     if not url:
-        await ctx.send("Не удалось сформировать URL admin API.")
+        await ctx.send("Admin API не настроен.")
         return
 
     headers = build_admin_headers(server_name)
@@ -45,4 +45,4 @@ async def bunker_command(ctx, switch: str, server: str = DEFAULT_SERVER_NAME):
                     await ctx.send(f"Admin API вернул код {resp.status}.")
     except Exception as error:
         print(f"[Bunker] server={server_name} error={error}")
-        await ctx.send("Admin API недоступен. Попробуйте позже.")
+        await ctx.send("Admin API недоступен.")

@@ -13,6 +13,7 @@ from template_embed import embed_status
 
 _STATE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "status_message_state.json")
 _STATUS_FIELD_NAMES = {field["name"] for field in embed_status["fields"]}
+_PREVIOUS_STATUS_FIELD_NAMES = {"Игроки", "Карта", "Режим", "Состояние", "Длительность", "Раунд", "Паник-бункер"}
 _LEGACY_STATUS_FIELD_NAMES = {"Онлайн", "Карта", "Режим", "Статус", "Время раунда", "Раунд", "Бункер"}
 _SKIP = object()
 
@@ -56,7 +57,10 @@ def _is_status_message(message) -> bool:
         return False
     embed = message.embeds[0]
     field_names = {field.name for field in embed.fields}
-    return _STATUS_FIELD_NAMES.issubset(field_names) or _LEGACY_STATUS_FIELD_NAMES.issubset(field_names)
+    return any(
+        names.issubset(field_names)
+        for names in (_STATUS_FIELD_NAMES, _PREVIOUS_STATUS_FIELD_NAMES, _LEGACY_STATUS_FIELD_NAMES)
+    )
 
 
 async def _resolve_status_message(channel, channel_id: int):

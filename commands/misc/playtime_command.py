@@ -110,7 +110,7 @@ async def playtime_command(ctx, *args: str):
         )
     except Exception as error:
         print(f"[Playtime] server={server_name} user={ctx.author.id} error={error}")
-        await ctx.send("Не удалось получить наигровку. Попробуйте позже.")
+        await ctx.send("Наигровка недоступна.")
         return
 
     if not playtimes:
