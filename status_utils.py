@@ -40,7 +40,7 @@ def build_status_embed(data: dict, status_text: str, round_length_text: str) -> 
     title = str(data.get("name") or "Без названия")[:256]
     values = {
         "online": f"{data.get('players', 0)}/{data.get('soft_max_players', 0)}",
-        "map": data.get("map", "Неизвестно"),
+        "map": data.get("map") or "Не выбрана",
         "preset": data.get("preset", "Неизвестно"),
         "status": status_text,
         "duration": round_length_text,
