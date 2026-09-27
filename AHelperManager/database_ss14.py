@@ -7,6 +7,7 @@ from dataConfig import (
     DEFAULT_DB_SERVER,
 )
 from datetime import datetime
+from uuid import UUID
 
 LINK_CODE_REGEX = re.compile(r"^[0-9a-f]{12}$")
 
@@ -684,7 +685,7 @@ class DatabaseManagerSS14:
 
                 await conn.execute(
                     "INSERT INTO discord_user (user_id, discord_id) VALUES ($1, $2)",
-                    guid,
+                    UUID(guid),
                     discord_id
                 )
                 return True, True, "inserted"
