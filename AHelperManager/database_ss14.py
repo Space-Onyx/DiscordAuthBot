@@ -689,6 +689,31 @@ class DatabaseManagerSS14:
                     discord_id
                 )
                 return True, True, "inserted"
+        except asyncpg.UniqueViolationError as error:
+            if error.constraint_name != "PK_discord_user" or conn is None:
+                print(f"[DiscordLink] insert server={db_name} error={error}")
+                return False, False, "database_error"
+
+            try:
+                async with conn.transaction():
+                    await conn.execute("LOCK TABLE discord_user IN EXCLUSIVE MODE")
+                    await conn.execute("""
+                        SELECT setval(
+                            pg_get_serial_sequence('discord_user', 'discord_user_id'),
+                            COALESCE(MAX(discord_user_id), 0) + 1,
+                            false
+                        )
+                        FROM discord_user
+                    """)
+                    await conn.execute(
+                        "INSERT INTO discord_user (user_id, discord_id) VALUES ($1, $2)",
+                        UUID(guid),
+                        discord_id
+                    )
+                return True, True, "inserted"
+            except Exception as retry_error:
+                print(f"[DiscordLink] insert retry server={db_name} error={retry_error}")
+                return False, False, "database_error"
         except Exception as error:
             print(f"[DiscordLink] insert server={db_name} error={error}")
             return False, False, "database_error"
